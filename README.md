@@ -15,7 +15,7 @@
   &nbsp;
   <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-MIT-b0d0e4?style=for-the-badge&labelColor=0d3b4f"></a>
   &nbsp;
-  <img alt="Version" src="https://img.shields.io/badge/v0.6.0-78e08f?style=for-the-badge&labelColor=0d3b4f">
+  <a href="CHANGELOG.md"><img alt="Version" src="https://img.shields.io/badge/v0.6.1-78e08f?style=for-the-badge&labelColor=0d3b4f"></a>
   &nbsp;
   <img alt="Zero dependencies" src="https://img.shields.io/badge/zero%20deps-7aa5bf?style=for-the-badge&labelColor=0d3b4f">
 </p>
@@ -140,6 +140,10 @@ The service worker only registers over `http://` or `https://`, so `file://` ope
 ## Browser support
 
 Tested on current Chrome, Firefox, Edge, and Safari (desktop + mobile). The game is responsive down to ~360 px and handles viewport chrome changes on iOS Safari.
+
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md) for the full version history. The current release is **v0.6.1**.
 
 ## License
 

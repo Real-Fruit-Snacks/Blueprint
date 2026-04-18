@@ -1,4 +1,4 @@
-/* ========== BLUEPRINT · v0.6.0 · Phase 4+5 (Redesign) ==========
+/* ========== BLUEPRINT · v0.6.1 · Phase 4+5 (Redesign) ==========
    Prestige-driven tree with Schematics currency. Leveled + unlock nodes.
    MK-IV / MK-V machines (10 new). New mechanics: momentum, lossless,
    bulk-buy, auto-buy, auto-click, double-pay.
@@ -12,7 +12,7 @@
   const SAVE_INTERVAL = 5000;
   const OFFLINE_CAP_MS = 8 * 3600 * 1000;
   const OFFLINE_REPORT_MS = 30_000;
-  const VERSION = '0.6.0';
+  const VERSION = '0.6.1';
   const LOG_MAX = 20;
   const MOMENTUM_CAP = 0.5;          // +50% max from momentum
   const LOSSLESS_FLOOR = 0.5;        // bottlenecked production floor
@@ -5177,7 +5177,7 @@
       </div>
       <div class="settings-footer">
         <span class="sf-brand">◆ BLUEPRINT</span>
-        <span>v${VERSION}</span>
+        <a class="sf-version" href="https://github.com/Real-Fruit-Snacks/blueprint/blob/main/CHANGELOG.md" target="_blank" rel="noopener">v${VERSION} · CHANGELOG</a>
       </div>
     `);
 

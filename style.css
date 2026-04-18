@@ -1154,6 +1154,13 @@ body:has(.challenge-banner) #app {
   color: var(--text-dim);
 }
 .settings-footer .sf-brand { color: var(--accent); }
+.settings-footer .sf-version {
+  color: var(--text-dim);
+  text-decoration: none;
+  border-bottom: 1px dashed var(--line-dim);
+  padding-bottom: 1px;
+}
+.settings-footer .sf-version:hover { color: var(--accent); border-color: var(--accent); }
 .settings-row {
   display: flex; align-items: center; justify-content: space-between;
   font-family: var(--font-ui); font-size: 12px;
