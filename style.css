@@ -2782,6 +2782,20 @@ body:not([data-tab="mastery"]) .patent.affordable { animation: none; }
   display: flex; gap: 8px; justify-content: flex-end;
 }
 
+/* Export modal: one-tap copy + inline status. */
+.export-copy-row {
+  display: flex; align-items: center; gap: 12px;
+  margin-top: 10px;
+}
+.export-copy-status {
+  font-family: var(--font-mono);
+  font-size: 10px; letter-spacing: 1.5px;
+  color: var(--text-dim);
+  min-height: 1em;
+}
+.export-copy-status.ok   { color: var(--ok); }
+.export-copy-status.warn { color: var(--warn); }
+
 /* ==========================================================
    MOBILE / TOUCH RESPONSIVE
    ==========================================================

@@ -5440,9 +5440,49 @@
   function actionExport() {
     state.meta.lastExportAt = Date.now();
     save();
-    showModal('EXPORT SAVE',
+    const code = exportSave();
+    const bg = showModal('EXPORT SAVE',
       `<p>Copy this string. Paste it into IMPORT to restore your game.</p>
-       <textarea readonly>${exportSave()}</textarea>`);
+       <textarea readonly data-export-code>${code}</textarea>
+       <div class="export-copy-row">
+         <button class="btn" data-action="copy">◆ COPY TO CLIPBOARD</button>
+         <span class="export-copy-status" data-copy-status></span>
+       </div>`);
+    const copyBtn = bg.querySelector('[data-action="copy"]');
+    const status = bg.querySelector('[data-copy-status]');
+    const textarea = bg.querySelector('[data-export-code]');
+    copyBtn.addEventListener('click', async (e) => {
+      e.stopPropagation(); // the modal-bg listener treats bare clicks as close
+      let ok = false;
+      // Try modern clipboard API first; it's allowed on a real user gesture in
+      // secure contexts. Fall back to execCommand if it throws (insecure origin,
+      // permission denied, older browser).
+      try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          await navigator.clipboard.writeText(code);
+          ok = true;
+        }
+      } catch (_) { /* fall through to legacy path */ }
+      if (!ok) {
+        try {
+          textarea.focus();
+          textarea.select();
+          ok = document.execCommand && document.execCommand('copy');
+          textarea.setSelectionRange(0, 0);
+        } catch (_) { ok = false; }
+      }
+      const okText = 'COPIED ✓';
+      const failText = 'COPY FAILED — select + copy manually';
+      status.textContent = ok ? okText : failText;
+      status.className = 'export-copy-status ' + (ok ? 'ok' : 'warn');
+      if (ok && audio.click) audio.click();
+      setTimeout(() => {
+        if (status.textContent === (ok ? okText : failText)) {
+          status.textContent = '';
+          status.className = 'export-copy-status';
+        }
+      }, 2400);
+    });
   }
   function actionImport() {
     showModal('IMPORT SAVE',
