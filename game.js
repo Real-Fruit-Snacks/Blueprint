@@ -3288,11 +3288,6 @@
   }
 
   // ---------- RENDER ----------
-  const topEl = {
-    fps:     document.getElementById('fps'),
-    session: document.getElementById('session'),
-    saved:   document.getElementById('saved'),
-  };
   let frameCount = 0, fpsAccum = 0, fpsDisplay = 0;
 
   function renderFactory() {
@@ -3375,10 +3370,6 @@
   }
 
   function render() {
-    topEl.fps.textContent = fpsDisplay + ' fps';
-    topEl.session.textContent = fmtDuration(Date.now() - sessionStartAt);
-    const sinceSave = Date.now() - state.lastSaveAt;
-    topEl.saved.textContent = sinceSave < 2000 ? 'just now' : fmtDuration(sinceSave) + ' ago';
     renderResBar();
     renderFactory();
     renderAchievementsSection();

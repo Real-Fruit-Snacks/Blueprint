@@ -71,7 +71,7 @@ body {
 #app {
   height: 100vh;
   display: grid;
-  grid-template-rows: 64px 1fr 36px;
+  grid-template-rows: 64px 1fr;
 }
 
 /* ========== TOP BAR ========== */
@@ -1556,22 +1556,9 @@ body {
   100% { transform: scale(1); }
 }
 
-/* ========== BOTTOM BAR ========== */
-.botbar {
-  border-top: 1px solid var(--line);
-  background: var(--panel-2);
-  display: flex; align-items: center;
-  padding: 0 16px;
-  gap: 18px;
-  font-size: 10px; letter-spacing: 1px;
-  color: var(--text-dim);
-}
-.botbar .ok    { color: var(--ok); }
-.botbar .dim   { color: var(--text-dim); }
-.botbar .spacer { flex: 1; }
-.botbar .ver {
-  color: var(--text-dim); font-size: 9px; letter-spacing: 1.5px;
-}
+/* Top-bar Settings button pinned to the far right on all viewports */
+.topbar-settings { flex: 0 0 auto; }
+.topbar-settings .icon { width: 14px; height: 14px; }
 .btn {
   background: transparent;
   border: 1px solid var(--line);
@@ -2010,7 +1997,7 @@ body {
   #app {
     height: 100vh;
     height: 100svh;
-    grid-template-rows: auto 1fr auto;
+    grid-template-rows: auto 1fr;
     padding-top: env(safe-area-inset-top);
     padding-bottom: env(safe-area-inset-bottom);
     padding-left: env(safe-area-inset-left);
@@ -2030,9 +2017,10 @@ body {
   .logo { display: none; }
   .tabs {
     order: 2;
-    flex: 0 0 auto;
-    margin-left: auto;
+    flex: 1 1 auto;
+    margin-left: 0;
     gap: 4px;
+    min-width: 0;
   }
   .tab {
     padding: 5px 8px;
@@ -2041,8 +2029,9 @@ body {
     min-height: 28px;
     display: flex; align-items: center;
   }
+  .topbar-settings { order: 3; }
   .res-bar {
-    order: 3;
+    order: 4;
     flex-basis: 100%;
     flex: 1 1 100%;
     justify-content: flex-start;
@@ -2213,33 +2202,6 @@ body {
   .ach-page-title { font-size: 13px; letter-spacing: 2px; }
   .ach-page-progress { font-size: 14px; }
 
-  /* ----- BOTTOM BAR ----- */
-  .botbar {
-    padding: 4px 8px;
-    gap: 8px;
-    font-size: 9px;
-    min-height: 34px;
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-  }
-  .botbar::-webkit-scrollbar { height: 0; }
-  .botbar > div { flex: 0 0 auto; }
-  .botbar .spacer { flex: 1 0 4px; }
-  .botbar .btn {
-    padding: 6px 8px;
-    font-size: 8px;
-    letter-spacing: 0.5px;
-    min-height: 28px;
-    flex: 0 0 auto;
-  }
-  .botbar .btn .icon { width: 12px; height: 12px; }
-  /* Only hide labels on buttons with an icon — keep text for icon-less ones */
-  .botbar .btn-icon .btn-label { display: none; }
-  .botbar .btn:not(.btn-icon) .btn-label { font-size: 9px; }
-  .botbar .btn-icon { padding: 6px 8px; }
-  .botbar .ver { display: none; }
-
   /* ----- MODALS ----- */
   .modal {
     min-width: 0;
@@ -2268,7 +2230,7 @@ body {
 /* Landscape-phone specific — compact chrome to maximize play area */
 @media (max-height: 500px) and (orientation: landscape) {
   #app {
-    grid-template-rows: auto 1fr auto;
+    grid-template-rows: auto 1fr;
     height: 100vh;
     height: 100svh;
   }
@@ -2292,10 +2254,6 @@ body {
   }
   .res .v { font-size: 13px; }
   .tabs { order: 1; margin-left: 0; }
-
-  .botbar { min-height: 26px; font-size: 8px; padding: 0 8px; }
-  .botbar .btn { padding: 3px 6px; font-size: 8px; min-height: 22px; }
-  .botbar .btn .icon { width: 11px; height: 11px; }
 
   /* Landscape can still afford the sidebar if width is enough */
   .factory-view.active.has-sidebar {
