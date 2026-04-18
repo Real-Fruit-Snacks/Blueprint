@@ -1638,6 +1638,10 @@
   const rpValueEl   = document.getElementById('rp-value');
   const rpRateEl    = document.getElementById('rp-rate');
   const prestigeCountEl = document.getElementById('prestige-count');
+  const treePrestigeEl = document.getElementById('tree-prestige');
+  const treePrestigeGainEl = document.getElementById('tree-prestige-gain');
+  const treePrestigeBtn = document.getElementById('tree-prestige-btn');
+  const treeTabBadgeEl = document.getElementById('tree-tab-badge');
   const tabTreeEl    = document.getElementById('tab-tree');
   const tabStatsEl   = document.getElementById('tab-stats');
   const tabMasteryEl = document.getElementById('tab-mastery');
@@ -2149,49 +2153,9 @@
     sidebarEl.innerHTML = '';
     dom.side = {};
 
-    const statusBox = document.createElement('div');
-    statusBox.className = 'side-box status-box';
-    statusBox.innerHTML = `
-      <h3>◆ STATUS</h3>
-      <div class="bigrow"><span class="k">SCHEMATICS</span><b class="v schem" data-schem>0</b></div>
-      <div class="bigrow patents-row" data-patents-row style="display:none">
-        <span class="k">PATENTS</span><b class="v patents" data-patents>0</b>
-      </div>
-      <div class="row"><span>MACHINES</span><b data-machines>0</b></div>
-      <div class="row"><span>RUN TIME</span><b data-runtime>0s</b></div>
-      <div class="row"><span>TOTAL PLAYED</span><b data-playtime>0s</b></div>
-    `;
-    sidebarEl.appendChild(statusBox);
-    dom.side.schem       = statusBox.querySelector('[data-schem]');
-    dom.side.patentsRow  = statusBox.querySelector('[data-patents-row]');
-    dom.side.patents     = statusBox.querySelector('[data-patents]');
-    dom.side.machines    = statusBox.querySelector('[data-machines]');
-    dom.side.runtime     = statusBox.querySelector('[data-runtime]');
-    dom.side.playtime    = statusBox.querySelector('[data-playtime]');
-
-    // PRESTIGE box
-    const prestigeBox = document.createElement('div');
-    prestigeBox.className = 'side-box prestige';
-    prestigeBox.innerHTML = `
-      <h3>⧉ PRESTIGE</h3>
-      <div class="big">+<span data-prestige-gain>0</span> <span class="unit">schematics</span></div>
-      <div class="row"><span>CORES · RUN</span><b data-run-cores>0</b></div>
-      <button class="prestige-btn" data-prestige-btn>◆ RESET FACTORY</button>
-    `;
-    sidebarEl.appendChild(prestigeBox);
-    dom.side.prestigeBox = prestigeBox;
-    dom.side.prestigeGain = prestigeBox.querySelector('[data-prestige-gain]');
-    dom.side.prestigeRunCores = prestigeBox.querySelector('[data-run-cores]');
-    dom.side.prestigeBtn = prestigeBox.querySelector('[data-prestige-btn]');
-    dom.side.prestigeBtn.addEventListener('click', () => {
-      if (!canPrestige()) return;
-      const gain = schematicsForPrestige();
-      showModal('◆ CONFIRM PRESTIGE',
-        `<p>Reset this run. You'll earn <b style="color:#ffd670">${gain} Schematics</b>.</p>
-         <p>Wiped: resources, machines, supports, auto-buy toggles.</p>
-         <p>Kept: Schematics, tree levels, prestige count.</p>`,
-        { confirmLabel: 'PRESTIGE', onConfirm: (bg) => { bg.remove(); doPrestige(); } });
-    });
+    // STATUS and PRESTIGE lived here previously; they've moved to the RESEARCH tab
+    // (tab badge + header prestige button) and the STATS tab (run-time/playtime/etc.),
+    // which keeps the factory view focused on building the factory.
 
     // PUBLISH box (shown when prototypes exist or have published)
     const publishBox = document.createElement('div');
@@ -2286,26 +2250,6 @@
   function renderSidebar() {
     factoryViewEl.classList.toggle('has-sidebar', sidebarVisible());
     if (!sidebarVisible()) return;
-
-    // STATUS box
-    let totalMachines = 0;
-    for (const id in state.machines) totalMachines += state.machines[id] || 0;
-    dom.side.schem.textContent = fmt(state.meta.schematics || 0);
-    dom.side.machines.textContent = fmt(totalMachines);
-    dom.side.runtime.textContent = fmtDuration(Date.now() - (state.meta.currentRunStartAt || Date.now()));
-    dom.side.playtime.textContent = fmtDuration(state.meta.totalPlaytimeMs);
-    const patents = state.meta.patents || 0;
-    const hasPatentsArea = patents > 0 || (state.meta.publishCount || 0) > 0;
-    dom.side.patentsRow.style.display = hasPatentsArea ? '' : 'none';
-    if (hasPatentsArea) dom.side.patents.textContent = fmt(patents);
-
-    // PRESTIGE visibility
-    dom.side.prestigeBox.style.display = canPrestige() ? '' : 'none';
-    if (canPrestige()) {
-      dom.side.prestigeGain.textContent = schematicsForPrestige();
-      dom.side.prestigeRunCores.textContent = fmt(state.meta.currentRunCores);
-      dom.side.prestigeBtn.classList.toggle('dim', schematicsForPrestige() < 1);
-    }
 
     // PUBLISH visibility (any prototypes, or has published before)
     const proto = state.resources.prototype || 0;
@@ -3340,6 +3284,32 @@
   function renderTreeHeader() {
     if (rpValueEl) rpValueEl.textContent = fmt(state.meta.schematics);
     if (prestigeCountEl) prestigeCountEl.textContent = state.meta.prestigeCount || 0;
+
+    // Prestige panel: only appears on the research page when a prestige is ready
+    const canP = canPrestige();
+    const gain = canP ? schematicsForPrestige() : 0;
+    if (treePrestigeEl) {
+      treePrestigeEl.style.display = canP ? '' : 'none';
+      if (canP && treePrestigeGainEl) treePrestigeGainEl.textContent = gain;
+      if (treePrestigeBtn) treePrestigeBtn.classList.toggle('dim', gain < 1);
+    }
+
+    // Tab badge: schematic count if any to spend, else "!" when prestige would pay off
+    if (treeTabBadgeEl) {
+      const schem = state.meta.schematics || 0;
+      if (schem > 0) {
+        treeTabBadgeEl.style.display = '';
+        treeTabBadgeEl.textContent = fmt(schem);
+        treeTabBadgeEl.classList.add('tab-badge-count');
+      } else if (canP && gain > 0) {
+        treeTabBadgeEl.style.display = '';
+        treeTabBadgeEl.textContent = '!';
+        treeTabBadgeEl.classList.remove('tab-badge-count');
+      } else {
+        treeTabBadgeEl.style.display = 'none';
+      }
+    }
+
     renderTierUnlocksBar();
   }
 
@@ -3457,6 +3427,17 @@
   function bindUI() {
     const setBtn = document.getElementById('btn-settings');
     if (setBtn) setBtn.addEventListener('click', showSettings);
+
+    // Prestige button lives on the RESEARCH page header now, not the factory sidebar
+    if (treePrestigeBtn) treePrestigeBtn.addEventListener('click', () => {
+      if (!canPrestige()) return;
+      const gain = schematicsForPrestige();
+      showModal('◆ CONFIRM PRESTIGE',
+        `<p>Reset this run. You'll earn <b style="color:#ffd670">${gain} Schematics</b>.</p>
+         <p>Wiped: resources, machines, supports, auto-buy toggles.</p>
+         <p>Kept: Schematics, tree levels, prestige count.</p>`,
+        { confirmLabel: 'PRESTIGE', onConfirm: (bg) => { bg.remove(); doPrestige(); } });
+    });
   }
 
   // ---------- BOOT ----------

@@ -23,7 +23,7 @@
       <div class="res-bar" id="res-bar"></div>
       <div class="tabs">
         <div class="tab on" data-tab="factory">FACTORY</div>
-        <div class="tab hidden" data-tab="tree" id="tab-tree">RESEARCH</div>
+        <div class="tab hidden" data-tab="tree" id="tab-tree">RESEARCH<span class="tab-badge" id="tree-tab-badge" style="display:none"></span></div>
         <div class="tab hidden" data-tab="mastery" id="tab-mastery">MASTERY</div>
         <div class="tab" data-tab="achievements" id="tab-achievements">ACHIEVEMENTS<span class="tab-badge" id="ach-tab-badge" style="display:none"></span></div>
         <div class="tab hidden" data-tab="stats" id="tab-stats">STATS</div>
@@ -42,6 +42,10 @@
           <div class="tree-rp">
             <span class="rp-big"><span id="rp-value">0</span> SCHEMATICS</span>
             <span class="rp-rate" id="rp-rate">prestige # <b id="prestige-count">0</b></span>
+          </div>
+          <div class="tree-prestige" id="tree-prestige" style="display:none">
+            <span class="tp-gain">+<b id="tree-prestige-gain">0</b> schematics</span>
+            <button class="prestige-btn" id="tree-prestige-btn">◆ PRESTIGE</button>
           </div>
         </div>
         <div class="tier-unlocks-bar" id="tier-unlocks-bar"></div>

@@ -572,7 +572,7 @@ body {
 
 .ach-page-body { padding: 0; }
 
-/* Small "!" badge on the ACHIEVEMENTS tab itself */
+/* Small "!" badge on the ACHIEVEMENTS / RESEARCH tab itself */
 .tab .tab-badge {
   display: inline-block;
   margin-left: 6px;
@@ -585,7 +585,11 @@ body {
   border-radius: 2px;
   animation: ach-new-pulse 1.4s ease-in-out infinite;
 }
-.tab.on .tab-badge { /* keep badge visible against green highlight */ }
+/* Numeric count variant — steady, not pulsing, in the accent color */
+.tab .tab-badge.tab-badge-count {
+  background: var(--accent);
+  animation: none;
+}
 
 .ach-group {
   margin-bottom: 18px;
@@ -1588,6 +1592,31 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
+/* Prestige action in the research header — only visible when canPrestige() */
+.tree-prestige {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 10px;
+  border: 1px solid var(--accent);
+  background: rgba(255, 214, 112, 0.08);
+  font-family: var(--font-mono);
+}
+.tree-prestige .tp-gain {
+  font-size: 11px;
+  letter-spacing: 1px;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+.tree-prestige .tp-gain b { color: var(--white); font-size: 14px; font-weight: bold; }
+.tree-prestige .prestige-btn {
+  width: auto;
+  margin-top: 0;
+  padding: 6px 14px;
+  font-size: 11px;
+  letter-spacing: 2px;
+}
+
 .tier-unlocks-bar {
   padding: 12px 16px;
   border-bottom: 1px solid var(--line);
@@ -1983,19 +2012,21 @@ body {
   .logo { display: none; }
   .tabs {
     order: 2;
-    flex: 1 1 auto;
+    flex: 0 1 auto;
     margin-left: 0;
     gap: 4px;
     min-width: 0;
+    flex-wrap: wrap;
   }
+  .topbar-settings { order: 3; margin-left: auto; }
   .tab {
-    padding: 5px 8px;
+    padding: 5px 6px;
     font-size: 9px;
-    letter-spacing: 1px;
+    letter-spacing: 0.5px;
     min-height: 28px;
     display: flex; align-items: center;
   }
-  .topbar-settings { order: 3; }
+  .tab .tab-badge { margin-left: 4px; padding: 1px 4px; }
   .res-bar {
     order: 4;
     flex-basis: 100%;
