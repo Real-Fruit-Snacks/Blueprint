@@ -1748,8 +1748,14 @@ body {
   fill: var(--white);
 }
 @keyframes node-glow {
-  0%, 100% { stroke-width: 2;   }
-  50%      { stroke-width: 3.5; }
+  0%, 100% {
+    stroke-width: 2;
+    filter: drop-shadow(0 0 3px var(--branch-color));
+  }
+  50% {
+    stroke-width: 3.5;
+    filter: drop-shadow(0 0 12px var(--branch-color));
+  }
 }
 /* .pulse override (brief purchase confirmation) should still work over glow */
 .tree-node.affordable.pulse .bg {
