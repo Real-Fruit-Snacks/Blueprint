@@ -2203,10 +2203,13 @@
   // ---------- PUBLISH (meta-prestige) ----------
   function canPublish() { return (state.resources.prototype || 0) >= 1; }
   function patentsForPublish() {
-    // Soft-capped: sqrt damping so a single publish can't end-run the game.
-    // 10 proto = 6 patents, 100 proto = 20, 1000 proto = 63, 10K proto = 200.
+    // Cube-root damping so a single grindy publish can't end-run mastery.
+    // Total cost to unlock every patent once is ~904; with this curve a first
+    // publish at ~200K prototypes pays ~175, forcing ~5 publishes to fully
+    // master the library instead of 1.
+    // 10 proto → 6 patents · 100 → 13 · 1K → 30 · 10K → 64 · 100K → 139 · 1M → 300.
     const proto = state.resources.prototype || 0;
-    let base = proto > 0 ? Math.floor(Math.sqrt(proto) * 2) : 0;
+    let base = proto > 0 ? Math.floor(Math.cbrt(proto) * 3) : 0;
     // RECURSIVE patent: +1 per 40 research levels owned (excluding origin)
     if (patentLevel('recursive') > 0) {
       let lvls = 0;
