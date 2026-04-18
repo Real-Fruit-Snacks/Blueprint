@@ -3236,12 +3236,21 @@
       <div class="settings-group">
         <h4>CONTROLS</h4>
         <div style="font-family: var(--font-ui); font-size: 11px; color: var(--text); line-height: 1.8;">
-          <div><b style="color:var(--accent)">CLICK</b> machine to buy 1</div>
-          <div><b style="color:var(--accent)">SHIFT+CLICK</b> to buy ×10 (requires Bulk Buy)</div>
-          <div><b style="color:var(--accent)">SHIFT+ALT+CLICK</b> to buy ×100</div>
-          <div><b style="color:var(--accent)">CTRL+SHIFT+CLICK</b> to buy ×1000 (requires Max Buy)</div>
-          <div><b style="color:var(--accent)">RIGHT-CLICK</b> to toggle auto-buy (requires Auto-Buy)</div>
-          <div><b style="color:var(--accent)">DRAG</b> on research tree to pan · <b style="color:var(--accent)">SCROLL</b> to zoom</div>
+          ${lastTouchTime > 0 ? `
+            <div><b style="color:var(--accent)">TAP</b> a machine to buy one</div>
+            <div><b style="color:var(--accent)">LONG-PRESS</b> a machine to see its details</div>
+            <div><b style="color:var(--accent)">TAP</b> the <b style="color:var(--accent)">A</b> chip to toggle auto-buy (requires Auto-Buy)</div>
+            <div>Use the <b style="color:var(--accent)">BUY MODE</b> bar for ×10 / ×100 / ×1000 / MAX (requires Bulk Buy)</div>
+            <div><b style="color:var(--accent)">DRAG</b> on research tree to pan · <b style="color:var(--accent)">PINCH</b> to zoom</div>
+            <div><b style="color:var(--accent)">TAP</b> a research node to arm, <b style="color:var(--accent)">TAP AGAIN</b> to confirm</div>
+          ` : `
+            <div><b style="color:var(--accent)">CLICK</b> machine to buy 1</div>
+            <div><b style="color:var(--accent)">SHIFT+CLICK</b> to buy ×10 (requires Bulk Buy)</div>
+            <div><b style="color:var(--accent)">SHIFT+ALT+CLICK</b> to buy ×100</div>
+            <div><b style="color:var(--accent)">CTRL+SHIFT+CLICK</b> to buy ×1000 (requires Max Buy)</div>
+            <div><b style="color:var(--accent)">RIGHT-CLICK</b> to toggle auto-buy (requires Auto-Buy)</div>
+            <div><b style="color:var(--accent)">DRAG</b> on research tree to pan · <b style="color:var(--accent)">SCROLL</b> to zoom</div>
+          `}
         </div>
       </div>
     `);
