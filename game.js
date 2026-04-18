@@ -1000,19 +1000,50 @@
     lastAchCheck = now;
     if (!state.meta.achievements) state.meta.achievements = {};
     if (!state.meta.newAchievements) state.meta.newAchievements = {};
-    let anyNew = false;
+    const earnedNow = [];
     for (const id in ACHIEVEMENTS) {
       if (state.meta.achievements[id]) continue;
       if (achieveCheck(id)) {
         state.meta.achievements[id] = now;
         state.meta.newAchievements[id] = true;
-        anyNew = true;
+        earnedNow.push(id);
       }
     }
-    if (anyNew) {
+    if (earnedNow.length) {
       invalidateRM();    // bonuses apply immediately
       audio.achievement();
       prevAchSig = '';   // force achievements panel to re-render
+      // Banner celebrate — suppressed during boot's catch-up pass to avoid a
+      // storm, and staggered 800ms after any other celebrate so the banners
+      // don't overlap with a concurrent prestige/publish/challenge banner.
+      if (!runtime.suppressAchievementCelebrate) {
+        const fire = () => {
+          if (earnedNow.length === 1) {
+            const id = earnedNow[0];
+            const a = ACHIEVEMENTS[id];
+            const bonus = ACHIEVEMENT_BONUSES[id];
+            celebrate('milestone', {
+              bannerKind: 'ACHIEVEMENT',
+              bannerMain: (a.name || '').replace(/^[◆◇]\s*/, ''),
+              bannerSub: (bonus && bonus.label) ? bonus.label : (a.desc || ''),
+              particles: 70,
+              skipShake: true,
+            });
+          } else {
+            celebrate('milestone', {
+              bannerKind: 'ACHIEVEMENTS',
+              bannerMain: `×${earnedNow.length} EARNED`,
+              bannerSub: 'Check the Achievements tab for details',
+              particles: 90,
+              skipShake: true,
+            });
+          }
+        };
+        // If something else was just shown (challenge complete / prestige
+        // banner etc.), wait for it to clear. Otherwise fire right away.
+        const concurrent = document.querySelector('.celebrate-banner');
+        setTimeout(fire, concurrent ? 2400 : 200);
+      }
     }
   }
   function dismissAchievement(id) {
@@ -1186,6 +1217,9 @@
         // run that broke its own rule mid-way auto-fails.
         challenge: { active: null, startedAt: 0, completed: {} },
         currentRunResearchBought: false,
+        // Fires once when the first Prototype ever produced crosses ≥1 so
+        // the gateway-to-meta-prestige moment gets the celebrate treatment.
+        firstPrototypeCelebrated: false,
       },
       log: [],
       lastSaveAt: Date.now(),
@@ -1203,6 +1237,10 @@
     consRate: { ore: 0, ingot: 0, part: 0, circuit: 0, core: 0, prototype: 0 },
     rm: null,
     autoBuyAccum: 0,
+    // Boot-time flag so the first checkAchievements() call after load doesn't
+    // spam a banner for every milestone the player already earned. Flipped to
+    // false at the end of boot().
+    suppressAchievementCelebrate: true,
   };
 
   // ---------- AUDIO ----------
@@ -2833,6 +2871,12 @@
       if (state.meta.noSupportPublish == null) state.meta.noSupportPublish = false;
       state.meta.challenge = Object.assign({ active: null, startedAt: 0, completed: {} }, state.meta.challenge || {});
       if (state.meta.currentRunResearchBought == null) state.meta.currentRunResearchBought = false;
+      if (state.meta.firstPrototypeCelebrated == null) {
+        // Existing saves: if they already produced prototype, mark as celebrated
+        // so we don't retroactively pop a banner for a moment that already passed.
+        const lp = (state.meta.lifetimeProduced && state.meta.lifetimeProduced.prototype) || 0;
+        state.meta.firstPrototypeCelebrated = lp >= 1;
+      }
       state.meta = Object.assign(freshState().meta, state.meta || {});
       state.meta.totalProduced = Object.assign(emptyResources(), state.meta.totalProduced || {});
       state.meta.lifetimeProduced = Object.assign(emptyResources(), state.meta.lifetimeProduced || {});
@@ -4917,6 +4961,18 @@
     if (Date.now() - lastSaveCheck > SAVE_INTERVAL) { lastSaveCheck = Date.now(); save(); }
     checkUnlockChanges();
     checkAchievements();
+    // First Prototype — one-time celebrate when the gateway to the Publish
+    // meta-loop unlocks. Uses lifetimeProduced to survive mid-run prestige.
+    if (!state.meta.firstPrototypeCelebrated && ((state.meta.lifetimeProduced && state.meta.lifetimeProduced.prototype) || 0) >= 1) {
+      state.meta.firstPrototypeCelebrated = true;
+      celebrate('publish', {
+        bannerKind: 'FIRST PROTOTYPE',
+        bannerMain: 'THE MASTERWORK',
+        bannerSub: 'Publish it in the Mastery tab to earn Patents',
+        particles: 110,
+      });
+      save();
+    }
     const hidden = typeof document !== 'undefined' && document.visibilityState === 'hidden';
     if (!hidden && nowPerf - lastRenderAt >= RENDER_INTERVAL_MS) {
       lastRenderAt = nowPerf;
@@ -5040,6 +5096,11 @@
       log(`Welcome back — away ${fmtDuration(offlineReport.elapsed)}`);
       setTimeout(() => showWelcomeBack(offlineReport), 400);
     }
+
+    // Allow achievement banners once the initial catchup checkAchievements()
+    // pass is out of the way. Small delay so any achievements awarded during
+    // applyOffline's tick-replay are processed without a banner storm.
+    setTimeout(() => { runtime.suppressAchievementCelebrate = false; }, 1500);
 
     console.log('[blueprint] v' + VERSION + ' · redesigned prestige tree · loaded=' + loaded);
   }
