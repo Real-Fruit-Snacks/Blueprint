@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="An incremental factory game. Mine, smelt, craft, assemble, forge, refine, prestige, publish.">
+  <meta name="theme-color" content="#0d3b4f">
+  <meta property="og:title" content="Blueprint · An Incremental Factory">
+  <meta property="og:description" content="Build a factory one machine at a time. Prestige for Schematics. Publish for Patents.">
+  <meta property="og:type" content="website">
+  <meta name="twitter:card" content="summary">
+  <title>Blueprint · An Incremental Factory</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <div id="app">
+
+    <header class="topbar">
+      <div class="logo">BLUEPRINT</div>
+      <div class="res-bar" id="res-bar"></div>
+      <div class="tabs">
+        <div class="tab on" data-tab="factory">FACTORY</div>
+        <div class="tab hidden" data-tab="tree" id="tab-tree">RESEARCH</div>
+        <div class="tab hidden" data-tab="mastery" id="tab-mastery">MASTERY</div>
+        <div class="tab hidden" data-tab="stats" id="tab-stats">STATS</div>
+      </div>
+    </header>
+
+    <main class="main-area" id="main">
+      <div class="view factory-view active" id="view-factory">
+        <div class="factory" id="factory"></div>
+        <aside class="sidebar" id="sidebar"></aside>
+      </div>
+      <div class="view tree-view" id="view-tree">
+        <div class="tree-header">
+          <div class="tree-title">RESEARCH · NETWORK</div>
+          <div class="tree-rp">
+            <span class="rp-big"><span id="rp-value">0</span> SCHEMATICS</span>
+            <span class="rp-rate" id="rp-rate">prestige # <b id="prestige-count">0</b></span>
+          </div>
+        </div>
+        <div class="tier-unlocks-bar" id="tier-unlocks-bar"></div>
+        <div class="tree-canvas" id="tree-canvas">
+          <svg id="tree-svg" viewBox="0 0 1000 700" preserveAspectRatio="xMidYMid meet"></svg>
+          <div class="tree-zoom">
+            <button data-zoom="in" title="Zoom in"><svg viewBox="0 0 16 16"><line x1="8" y1="3" x2="8" y2="13"/><line x1="3" y1="8" x2="13" y2="8"/></svg></button>
+            <button data-zoom="out" title="Zoom out"><svg viewBox="0 0 16 16"><line x1="3" y1="8" x2="13" y2="8"/></svg></button>
+            <button data-zoom="reset" title="Reset view"><svg viewBox="0 0 16 16"><rect x="3" y="3" width="10" height="10" fill="none"/><circle cx="8" cy="8" r="1.5"/></svg></button>
+          </div>
+        </div>
+        <div class="tree-legend">
+          <div class="item"><span class="sw owned"></span>OWNED</div>
+          <div class="item"><span class="sw avail"></span>AVAILABLE</div>
+          <div class="item"><span class="sw locked"></span>LOCKED</div>
+          <div class="item hint">drag · scroll to zoom</div>
+        </div>
+      </div>
+      <div class="view mastery-view" id="view-mastery">
+        <div class="mastery-body" id="mastery-body"></div>
+      </div>
+      <div class="view stats-view" id="view-stats">
+        <div class="stats-body" id="stats-body"></div>
+      </div>
+    </main>
+    <div class="tree-tooltip" id="tree-tip" style="display:none"></div>
+    <div class="slot-tip" id="slot-tip" style="display:none"></div>
+
+    <footer class="botbar">
+      <div>STATUS <span class="ok">● ONLINE</span></div>
+      <div>TICK <span id="fps" class="ok">— fps</span></div>
+      <div>SESSION <span id="session">0s</span></div>
+      <div>SAVED <span id="saved" class="dim">—</span></div>
+      <div class="spacer"></div>
+      <button class="btn btn-icon" id="btn-settings"><svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><line x1="2" y1="4" x2="14" y2="4"/><line x1="2" y1="8" x2="14" y2="8"/><line x1="2" y1="12" x2="14" y2="12"/><circle cx="5" cy="4" r="1.6"/><circle cx="11" cy="8" r="1.6"/><circle cx="6" cy="12" r="1.6"/></svg>SETTINGS</button>
+      <button class="btn" id="btn-export">EXPORT</button>
+      <button class="btn" id="btn-import">IMPORT</button>
+      <button class="btn warn" id="btn-reset">RESET</button>
+      <span class="ver">v0.7.0</span>
+    </footer>
+
+  </div>
+
+  <script src="game.js"></script>
+</body>
+</html>
