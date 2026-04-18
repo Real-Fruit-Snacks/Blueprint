@@ -647,7 +647,7 @@
   function emptyResources() { return { ore: 0, ingot: 0, part: 0, circuit: 0, core: 0, prototype: 0 }; }
   function emptyMachines()  { return Object.fromEntries(Object.keys(MACHINES).map(k => [k, 0])); }
   function emptySupports()  { return Object.fromEntries(Object.keys(SUPPORTS).map(k => [k, 0])); }
-  function freshResearch()  { return { levels: { origin: 0 }, tiersUnlocked: { 2: false, 3: false, 4: false, 5: false, 6: false }, patentLevels: {} }; }
+  function freshResearch()  { return { levels: { origin: 1 }, tiersUnlocked: { 2: false, 3: false, 4: false, 5: false, 6: false }, patentLevels: {} }; }
 
   function freshState() {
     return {
@@ -1761,10 +1761,9 @@
       state.machines  = Object.assign(emptyMachines(),  state.machines  || {});
       state.supports  = Object.assign(emptySupports(),  state.supports  || {});
       state.research  = Object.assign(freshResearch(),  state.research  || {});
-      // Pre-existing saves had origin auto-owned (level 1). New games start at 0 (must purchase).
-      const hadOldResearch = state.research.levels && Object.keys(state.research.levels).some(k => k !== 'origin' && state.research.levels[k] > 0);
-      const defaultOrigin = hadOldResearch ? 1 : 0;
-      state.research.levels = Object.assign({ origin: defaultOrigin }, state.research.levels || {});
+      // Origin is the free seed node — always owned on any save, migrated or fresh.
+      state.research.levels = Object.assign({ origin: 1 }, state.research.levels || {});
+      if (!state.research.levels.origin) state.research.levels.origin = 1;
       state.research.tiersUnlocked = Object.assign({ 2: false, 3: false, 4: false, 5: false, 6: false }, state.research.tiersUnlocked || {});
       state.research.patentLevels = state.research.patentLevels || {};
       state.settings = Object.assign(freshState().settings, state.settings || {});
@@ -2505,24 +2504,6 @@
       sheet.appendChild(c);
     });
 
-    // Origin row — the starter node sits above the tier columns. Before
-    // origin is owned, this is the only clickable thing on the sheet; once
-    // owned, it shrinks into a small status marker.
-    const originRow = document.createElement('div');
-    originRow.className = 'rails-origin';
-    const originNode = buildRailNode('origin', 'origin');
-    originRow.appendChild(originNode);
-    const originInfo = document.createElement('div');
-    originInfo.className = 'ro-info';
-    originInfo.innerHTML = `
-      <div class="ro-label" data-origin-label>SEED THE RESEARCH NETWORK</div>
-      <div class="ro-sub" data-origin-sub>The tree unlocks from here. One free click to begin.</div>
-    `;
-    originRow.appendChild(originInfo);
-    sheet.appendChild(originRow);
-    dom.railNodes['origin'] = originNode;
-    dom.railOriginRow = originRow;
-
     // Ring-bar — tier column headers aligned with node columns below.
     const ringbar = document.createElement('div');
     ringbar.className = 'rails-ringbar';
@@ -2881,31 +2862,6 @@
       }
     }
 
-    // Origin row — big "click to begin" prompt before it's owned, compact
-    // "network active" marker after. Done here (not in the main loop) because
-    // origin isn't part of any branch and has its own copy in the DOM.
-    if (dom.railOriginRow) {
-      const originLvl = nodeLevel('origin');
-      const originEl = dom.railNodes['origin'];
-      if (originEl) {
-        originEl.classList.remove('owned', 'available', 'locked', 'affordable', 'armed');
-        if (originLvl > 0) {
-          originEl.classList.add('owned');
-        } else {
-          originEl.classList.add('available', 'affordable');
-        }
-        if (armedNode === 'origin') originEl.classList.add('armed');
-        const costEl = originEl.querySelector('.rn-cost');
-        if (costEl) costEl.textContent = originLvl > 0 ? 'ACTIVE' : 'FREE';
-      }
-      dom.railOriginRow.classList.toggle('seeded', originLvl > 0);
-      const labelEl = dom.railOriginRow.querySelector('[data-origin-label]');
-      const subEl = dom.railOriginRow.querySelector('[data-origin-sub]');
-      if (labelEl) labelEl.textContent = originLvl > 0 ? 'NETWORK SEEDED' : 'SEED THE RESEARCH NETWORK';
-      if (subEl) subEl.textContent = originLvl > 0
-        ? 'Research active. Spend schematics on any discipline below.'
-        : 'The tree unlocks from here. One free click to begin.';
-    }
   }
 
   function bindRailsInteractions() {
