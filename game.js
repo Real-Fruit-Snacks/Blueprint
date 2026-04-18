@@ -570,6 +570,57 @@
       timerMs: 0,
       applyReward: (m) => { m.symbiosis += 0.02; },
     },
+    monoculture: {
+      name: 'MONOCULTURE',
+      desc: 'Only the slot-1 base machine of each tier is available. No higher-slot variants, no MK-IV or MK-V.',
+      constraintLabel: 'SLOT-1 ONLY',
+      rewardLabel: '+5% production',
+      goalSchematics: 50,
+      goalLabel: 'Earn 50 schematics with base machines only',
+      timerMs: 0,
+      applyReward: (m) => { m.prodMul *= 1.05; },
+    },
+    purist: {
+      name: 'PURIST',
+      desc: 'Support buildings (Power Node, Boost Relay) are locked. No global multipliers from supports.',
+      constraintLabel: 'NO SUPPORTS',
+      rewardLabel: '+8% support effects',
+      goalSchematics: 40,
+      goalLabel: 'Earn 40 schematics without a single support',
+      timerMs: 0,
+      applyReward: (m) => { m.powerBoost *= 1.08; },
+    },
+    ironman: {
+      name: 'IRONMAN',
+      desc: 'Patent startup bonuses (inheritance, Fast Start, Legacy Wealth, etc.) do not apply this run.',
+      constraintLabel: 'NO HEIRLOOMS',
+      rewardLabel: '+8% schematic gain',
+      goalSchematics: 35,
+      goalLabel: 'Earn 35 schematics without patent heirlooms',
+      timerMs: 0,
+      applyReward: (m) => { m.schematicMul *= 1.08; },
+    },
+    slow_burn: {
+      name: 'SLOW BURN',
+      desc: 'Prestige is locked for the first 10 minutes of the run. Play deep, not fast.',
+      constraintLabel: 'MIN 10:00',
+      rewardLabel: '+2h offline cap',
+      goalSchematics: 35,
+      goalLabel: 'Earn 35 schematics after a 10-minute wait',
+      timerMs: 0,
+      minRunMs: 10 * 60 * 1000,
+      applyReward: (m) => { m.offlineHoursAdd += 2; },
+    },
+    chaos: {
+      name: 'CHAOS',
+      desc: 'Every 30s, a random tier is knocked to 10% production for 8s. Plan around the randomness.',
+      constraintLabel: 'TIER BLACKOUTS',
+      rewardLabel: '+10 click power',
+      goalSchematics: 40,
+      goalLabel: 'Earn 40 schematics under rolling blackouts',
+      timerMs: 0,
+      applyReward: (m) => { m.clickAdd += 10; },
+    },
   };
 
   // Challenge helpers. Kept inside the IIFE so they close over state; the
@@ -600,33 +651,59 @@
       const started = state.meta.challenge.startedAt || Date.now();
       return (Date.now() - started) <= (CHALLENGES.blitz.timerMs || Infinity);
     }
+    if (id === 'monoculture') {
+      for (const mid in state.machines) {
+        if ((state.machines[mid] || 0) > 0 && MACHINES[mid].slot !== 1) return false;
+      }
+      return true;
+    }
+    if (id === 'purist') {
+      for (const sid in state.supports) {
+        if ((state.supports[sid] || 0) > 0) return false;
+      }
+      return true;
+    }
+    if (id === 'slow_burn') {
+      const elapsed = Date.now() - (state.meta.currentRunStartAt || Date.now());
+      return elapsed >= (CHALLENGES.slow_burn.minRunMs || 0);
+    }
+    // ironman & chaos just need the schematic threshold — no additional check
     return true;
   }
   function startChallenge(id) {
     if (!CHALLENGES[id]) return false;
     if (activeChallenge()) return false;
     if (!challengeUnlocked()) return false;
-    // Full clean-room run: prestige if possible (credit existing schematics),
-    // else just reset the current run. Either way player starts with an empty
-    // factory for a fair challenge attempt.
+    // Credit pending schematics if any (mirrors a normal prestige payout) BEFORE
+    // the reset, so players don't lose progress by starting a challenge early.
     if (canPrestige()) {
-      doPrestige();
-    } else {
-      // Manual reset without the schematic payout (nothing to pay out anyway).
-      state.resources = emptyResources();
-      state.machines = emptyMachines();
-      state.supports = emptySupports();
-      state.meta.totalProduced = emptyResources();
-      state.meta.currentRunCores = 0;
-      state.meta.currentRunStartAt = Date.now();
-      state.meta.totalClicks = 0;
-      state.meta.clickProgress = { ore: 0, ingot: 0, part: 0, circuit: 0, core: 0, prototype: 0 };
-      state.settings.autoBuy = {};
-      applyStartupBonuses();
+      const gained = schematicsForPrestige();
+      state.meta.schematics += gained;
+      state.meta.totalSchematics = (state.meta.totalSchematics || 0) + gained;
+      state.meta.lifetimeSchematics = (state.meta.lifetimeSchematics || 0) + gained;
+      state.meta.prestigeCount += 1;
+      state.meta.lifetimePrestiges = (state.meta.lifetimePrestiges || 0) + 1;
+      state.meta.lastPrestigeAt = Date.now();
     }
+    // Manual reset — avoids doPrestige's "is a challenge ending?" evaluation
+    // path. The new challenge is about to start, not ending.
+    state.resources = emptyResources();
+    state.machines = emptyMachines();
+    state.supports = emptySupports();
+    state.meta.totalProduced = emptyResources();
+    state.meta.currentRunCores = 0;
+    state.meta.currentRunStartAt = Date.now();
+    state.meta.totalClicks = 0;
+    state.meta.clickProgress = { ore: 0, ingot: 0, part: 0, circuit: 0, core: 0, prototype: 0 };
+    state.meta.currentRunResearchBought = false;
+    state.settings.autoBuy = {};
+
+    // Activate challenge flag BEFORE applyStartupBonuses so Ironman can skip
+    // the patent heirlooms for this run.
     state.meta.challenge.active = id;
     state.meta.challenge.startedAt = Date.now();
-    state.meta.currentRunResearchBought = false;
+    applyStartupBonuses();
+
     invalidateRM();
     save();
     rebuildAll();
@@ -739,6 +816,11 @@
     ch_blitz:        { schematicMul: 0.05,   label: '+5% schematics gain' },
     ch_blackout:     { prodMul: 0.05,        label: '+5% production' },
     ch_tall:         { prodMul: 0.05,        label: '+5% production' },
+    ch_monoculture:  { prodMul: 0.05,        label: '+5% production' },
+    ch_purist:       { prodMul: 0.05,        label: '+5% production' },
+    ch_ironman:      { schematicMul: 0.05,   label: '+5% schematics gain' },
+    ch_slow_burn:    { prodMul: 0.05,        label: '+5% production' },
+    ch_chaos:        { prodMul: 0.05,        label: '+5% production' },
     ch_grandmaster:  { prodMul: 0.20, schematicMul: 0.20, label: '+20% production · +20% schematics' },
   };
 
@@ -802,6 +884,11 @@
     ch_blitz:         { name: '◆ BLITZ MODE',      desc: 'Complete the Blitz challenge.',                             group: 'challenge' },
     ch_blackout:      { name: '◆ BLACKOUT MODE',   desc: 'Complete the Blackout challenge.',                          group: 'challenge' },
     ch_tall:          { name: '◆ TALL MODE',       desc: 'Complete the Tall challenge.',                              group: 'challenge' },
+    ch_monoculture:   { name: '◆ MONOCULTURE MODE',desc: 'Complete the Monoculture challenge.',                       group: 'challenge' },
+    ch_purist:        { name: '◆ PURIST MODE',     desc: 'Complete the Purist challenge.',                            group: 'challenge' },
+    ch_ironman:       { name: '◆ IRONMAN MODE',    desc: 'Complete the Ironman challenge.',                           group: 'challenge' },
+    ch_slow_burn:     { name: '◆ SLOW BURN MODE',  desc: 'Complete the Slow Burn challenge.',                         group: 'challenge' },
+    ch_chaos:         { name: '◆ CHAOS MODE',      desc: 'Complete the Chaos challenge.',                             group: 'challenge' },
     ch_grandmaster:   { name: '◆ GRANDMASTER',     desc: 'Complete every challenge mode.',                            group: 'challenge' },
   };
 
@@ -887,6 +974,11 @@
       case 'ch_blitz':        return { current: (m.challenge && m.challenge.completed && m.challenge.completed.blitz)    ? 1 : 0, goal: 1 };
       case 'ch_blackout':     return { current: (m.challenge && m.challenge.completed && m.challenge.completed.blackout) ? 1 : 0, goal: 1 };
       case 'ch_tall':         return { current: (m.challenge && m.challenge.completed && m.challenge.completed.tall)     ? 1 : 0, goal: 1 };
+      case 'ch_monoculture':  return { current: (m.challenge && m.challenge.completed && m.challenge.completed.monoculture) ? 1 : 0, goal: 1 };
+      case 'ch_purist':       return { current: (m.challenge && m.challenge.completed && m.challenge.completed.purist)   ? 1 : 0, goal: 1 };
+      case 'ch_ironman':      return { current: (m.challenge && m.challenge.completed && m.challenge.completed.ironman)  ? 1 : 0, goal: 1 };
+      case 'ch_slow_burn':    return { current: (m.challenge && m.challenge.completed && m.challenge.completed.slow_burn) ? 1 : 0, goal: 1 };
+      case 'ch_chaos':        return { current: (m.challenge && m.challenge.completed && m.challenge.completed.chaos)    ? 1 : 0, goal: 1 };
       case 'ch_grandmaster': {
         const done = (m.challenge && m.challenge.completed) || {};
         let c = 0; const total = Object.keys(CHALLENGES).length;
@@ -1714,11 +1806,22 @@
   }
   function machineUnlocked(id) {
     const m = MACHINES[id];
+    // MONOCULTURE challenge — only the slot-1 base machine of each tier is available.
+    if (activeChallenge() === 'monoculture' && m.slot !== 1) return false;
     if (m.mk === 'mk4') return (state.research.levels.mk4 || 0) > 0;
     if (m.mk === 'mk5') return (state.research.levels.mk5 || 0) > 0;
     return true;
   }
-  function canPrestige() { return schematicsForPrestige() >= 1; }
+  function canPrestige() {
+    if (schematicsForPrestige() < 1) return false;
+    // SLOW BURN challenge — forced minimum run length before prestige allowed.
+    const id = activeChallenge();
+    if (id && CHALLENGES[id] && CHALLENGES[id].minRunMs) {
+      const elapsed = Date.now() - (state.meta.currentRunStartAt || Date.now());
+      if (elapsed < CHALLENGES[id].minRunMs) return false;
+    }
+    return true;
+  }
   function treeTabVisible() { return canPrestige() || state.meta.prestigeCount > 0 || state.meta.schematics > 0; }
 
   // ---------- RESEARCH ----------
@@ -1887,6 +1990,8 @@
   }
 
   function applyStartupBonuses() {
+    // IRONMAN challenge: patent heirlooms are suppressed for this run.
+    if (activeChallenge() === 'ironman') return;
     const lvls = state.research.patentLevels || {};
     if ((lvls.draft_inheritance || 0) > 0)        state.research.tiersUnlocked[2] = true;
     if ((lvls.schematic_inheritance || 0) > 0)    state.research.tiersUnlocked[3] = true;
@@ -2086,6 +2191,12 @@
     return 1;
   }
   function buySupport(id) {
+    // PURIST challenge — supports are locked this run.
+    if (activeChallenge() === 'purist') {
+      toast('<b>PURIST</b> — no supports this run.', { duration: 2500 });
+      audio.error();
+      return false;
+    }
     const cost = supportCost(id);
     if (!canAfford(cost)) return false;
     for (const res in cost) state.resources[res] -= cost[res];
@@ -2320,9 +2431,10 @@
       }
 
       if (produceRatio > 0) {
-        // Per-machine multipliers: Golden Tick surge, Flash burst, Rising Tide lower-tier bonus, Distributed same-tier bonus
+        // Per-machine multipliers: Golden Tick surge, Flash burst, Chaos blackout, Rising Tide lower-tier bonus, Distributed same-tier bonus
         const goldenMul = (runtime.goldenTick && runtime.goldenTick.active && runtime.goldenTick.tierId === m.tier) ? 10 : 1;
         const flashMul = (runtime.flash && runtime.flash.active && runtime.flash.tierId === m.tier) ? 5 : 1;
+        const chaosMul = (runtime.chaos && runtime.chaos.endAt > Date.now() && runtime.chaos.tierId === m.tier) ? 0.1 : 1;
         const tideMul = risingTideOn ? (risingTideBonus[m.tier] || 1) : 1;
         let distributedMul = 1;
         if (r.distributed > 0) {
@@ -2334,7 +2446,7 @@
         }
         for (const res in m.produces) {
           const extra = (res === 'prototype') ? r.prototypeMul : 1;
-          const rate = m.produces[res] * count * produceRatio * prodMul * extra * goldenMul * flashMul * tideMul * distributedMul;
+          const rate = m.produces[res] * count * produceRatio * prodMul * extra * goldenMul * flashMul * chaosMul * tideMul * distributedMul;
           const amt = rate * dt;
           state.resources[res] += amt;
           state.meta.totalProduced[res] = (state.meta.totalProduced[res] || 0) + amt;
@@ -2372,6 +2484,23 @@
       if (Date.now() - started >= limit) {
         failChallenge('blitz');
       }
+    }
+
+    // CHAOS challenge — every 30s, pick a random tier and cut its production
+    // to 10% for 8s. Multiplier is applied in the per-machine production loop
+    // above via runtime.chaos (see around the `goldenMul`/`flashMul` setup).
+    if (activeChallenge() === 'chaos') {
+      if (!runtime.chaos) runtime.chaos = { tierId: null, endAt: 0, nextAt: Date.now() + 15000 };
+      const c = runtime.chaos;
+      const now2 = Date.now();
+      if (c.endAt < now2 && now2 >= c.nextAt) {
+        c.tierId = 1 + Math.floor(Math.random() * 6);
+        c.endAt = now2 + 8000;
+        c.nextAt = now2 + 30000;
+        log(`⚠ CHAOS · T${c.tierId} blackout for 8s`);
+      }
+    } else if (runtime.chaos) {
+      runtime.chaos = null;
     }
 
     // HISTORY SAMPLER — record a small snapshot every 15s so the Stats tab can
@@ -4283,6 +4412,7 @@
       document.body.appendChild(challengeBannerEl);
     }
     let timerHtml = '';
+    // BLITZ — countdown timer
     if (ch.timerMs > 0) {
       const elapsed = Date.now() - (state.meta.challenge.startedAt || Date.now());
       const remainMs = Math.max(0, ch.timerMs - elapsed);
@@ -4290,12 +4420,28 @@
       const rs = Math.floor((remainMs % 60000) / 1000);
       timerHtml = `<span class="cb-timer">${rm2}:${rs.toString().padStart(2, '0')}</span>`;
     }
+    // SLOW BURN — count-up elapsed / minimum
+    else if (ch.minRunMs) {
+      const runStart = state.meta.currentRunStartAt || Date.now();
+      const elapsed = Date.now() - runStart;
+      const minS = Math.ceil(ch.minRunMs / 1000);
+      const elS = Math.min(minS, Math.floor(elapsed / 1000));
+      const fm = (s) => `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, '0')}`;
+      const done = elapsed >= ch.minRunMs;
+      timerHtml = `<span class="cb-timer ${done ? 'ok' : ''}">${fm(elS)} / ${fm(minS)}</span>`;
+    }
+    // CHAOS — show which tier is currently blacked out (if any)
+    let chaosHtml = '';
+    if (active === 'chaos' && runtime.chaos && runtime.chaos.endAt > Date.now()) {
+      chaosHtml = `<span class="cb-chaos">T${runtime.chaos.tierId} ◌ BLACKOUT</span>`;
+    }
     const sch = schematicsForPrestige();
     challengeBannerEl.innerHTML = `
       <span class="cb-tag">⚠ CHALLENGE</span>
       <span class="cb-name">${ch.name}</span>
       <span class="cb-constraint">${ch.constraintLabel}</span>
       ${timerHtml}
+      ${chaosHtml}
       <span class="cb-progress">${sch} / ${ch.goalSchematics} ◆</span>
       <button class="cb-abandon" data-ch-abandon>ABANDON</button>
     `;
@@ -4661,9 +4807,13 @@
         const afford = canAfford(cost);
 
         slot.querySelector('[data-count]').textContent = '×' + owned;
+        let lockedLabel;
+        if (activeChallenge() === 'monoculture' && MACHINES[id].slot !== 1) lockedLabel = 'SLOT-1 ONLY';
+        else if (MACHINES[id].mk === 'mk4') lockedLabel = 'MK-IV LOCKED';
+        else lockedLabel = 'MK-V LOCKED';
         slot.querySelector('[data-cost]').textContent = unlocked
           ? Object.entries(cost).map(([r, a]) => fmt(a) + ' ' + r).join(' · ')
-          : (MACHINES[id].mk === 'mk4' ? 'MK-IV LOCKED' : 'MK-V LOCKED');
+          : lockedLabel;
 
         slot.classList.toggle('owned', owned > 0);
         slot.classList.toggle('affordable', unlocked && afford);

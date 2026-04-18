@@ -473,6 +473,21 @@ body {
   background: rgba(0,0,0,0.3); padding: 3px 8px;
   border: 1px solid var(--accent);
 }
+.challenge-banner .cb-timer.ok {
+  color: var(--ok); border-color: var(--ok);
+}
+.challenge-banner .cb-chaos {
+  font-family: var(--font-mono);
+  color: var(--warn);
+  background: rgba(255, 126, 95, 0.15);
+  padding: 3px 8px;
+  border: 1px solid var(--warn);
+  animation: chaos-pulse 0.8s ease-in-out infinite;
+}
+@keyframes chaos-pulse {
+  0%, 100% { opacity: 0.85; }
+  50%      { opacity: 1;    }
+}
 .challenge-banner .cb-progress {
   color: var(--ok); font-family: var(--font-mono);
 }
