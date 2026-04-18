@@ -1116,8 +1116,14 @@
   function supportUnlocked(id) { return tierUnlocked(SUPPORTS[id].unlockTier); }
   function anySupportUnlocked() { for (const id in SUPPORTS) if (supportUnlocked(id)) return true; return false; }
   function sidebarVisible() {
-    for (const id in state.machines) if ((state.machines[id] || 0) > 0) return true;
-    return state.meta.prestigeCount > 0 || state.meta.schematics > 0;
+    // Only render the sidebar once it has something meaningful to display:
+    // either supports are unlocked (T4+) or a publish/prototype flow is in
+    // play. Previously it popped out as soon as the player bought a single
+    // machine, leaving an empty panel for most of the early game.
+    if (anySupportUnlocked()) return true;
+    if ((state.resources.prototype || 0) > 0) return true;
+    if ((state.meta.publishCount || 0) > 0) return true;
+    return false;
   }
   function machineUnlocked(id) {
     const m = MACHINES[id];
@@ -2625,17 +2631,18 @@
       track.appendChild(backbone);
       dom.railBackboneFills['tiers'] = bbFill;
 
+      // Tier unlocks don't share the research ring scheme — they're their
+      // own thing. Spread the 5 nodes evenly across the full track width
+      // instead of leaving a gaping empty third on the right.
+      track.classList.add('rail-track-tiers');
       dom.tierRailNodes = {};
-      for (let r = 1; r <= RAILS_TIERS; r++) {
+      for (let tid = 2; tid <= 6; tid++) {
         const cell = document.createElement('div');
-        cell.className = 'rail-cell';
-        cell.dataset.ring = r;
-        const tid = r + 1; // R1 = T2, R2 = T3, ... R5 = T6
-        if (tid >= 2 && tid <= 6) {
-          const node = buildTierUnlockNode(tid);
-          cell.appendChild(node);
-          dom.tierRailNodes[tid] = node;
-        }
+        cell.className = 'rail-cell has-node';
+        cell.dataset.tier = tid;
+        const node = buildTierUnlockNode(tid);
+        cell.appendChild(node);
+        dom.tierRailNodes[tid] = node;
         track.appendChild(cell);
       }
       rail.appendChild(track);
@@ -3120,7 +3127,12 @@
     tabMasteryEl.classList.toggle('hidden', !masteryTabVisible());
   }
 
-  function statsTabVisible() { return sidebarVisible(); }
+  // Stats becomes relevant the moment the player owns any machine, independent
+  // of whether the sidebar has content.
+  function statsTabVisible() {
+    for (const id in state.machines) if ((state.machines[id] || 0) > 0) return true;
+    return state.meta.prestigeCount > 0 || state.meta.schematics > 0;
+  }
   function masteryTabVisible() {
     return (state.resources.prototype || 0) > 0
         || (state.meta.patents || 0) > 0

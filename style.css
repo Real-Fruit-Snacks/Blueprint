@@ -1641,6 +1641,9 @@ body {
   align-items: center;
   min-height: 80px;
 }
+/* Tier-unlock rail spreads its 5 nodes across the full track width instead
+   of sharing the research-tree 8-column grid. */
+.rail-track-tiers { grid-template-columns: repeat(5, 1fr); }
 
 /* Backbone — dashed horizontal line across the whole track. Base stroke is
    tinted in the branch colour (dim) so the whole rail reads as "this line
@@ -1723,7 +1726,9 @@ body {
   cursor: pointer;
   padding: 4px 2px;
   user-select: none;
-  --branch-color: var(--text);
+  /* --branch-color comes from the .br-* class on this element. Don't
+     override it here — this rule declared after .br-* would clobber the
+     branch hue with var(--text). */
   transition: transform 0.12s;
 }
 .rail-node:hover {
@@ -1895,14 +1900,21 @@ body {
   opacity: 0;
 }
 
+/* Locked — still in the discipline's colour, just muted. Keeps every rail
+   reading as a single family from the moment the player opens the tab. */
 .rail-node.locked                    { cursor: not-allowed; }
-.rail-node.locked .rn-circle         { border-style: dashed; border-color: var(--line-dim); opacity: 0.65; box-shadow: none; }
-.rail-node.locked .rn-circle::before { opacity: 0.15; }
-.rail-node.locked .rn-glyph          { color: var(--text-ghost, var(--text-dim)); opacity: 0.55; }
-.rail-node.locked .rn-name           { color: var(--text-dim); opacity: 0.6; }
+.rail-node.locked .rn-circle         {
+  border-style: dashed;
+  border-color: var(--branch-color);
+  opacity: 0.45;
+  box-shadow: none;
+}
+.rail-node.locked .rn-circle::before { opacity: 0.2; }
+.rail-node.locked .rn-glyph          { color: var(--branch-color); opacity: 0.55; }
+.rail-node.locked .rn-name           { color: var(--branch-color); opacity: 0.45; }
 .rail-node.locked .rn-cost           {
-  color: var(--text-dim);
-  opacity: 0.5;
+  color: var(--branch-color);
+  opacity: 0.4;
   border-color: transparent;
   background: transparent;
 }
