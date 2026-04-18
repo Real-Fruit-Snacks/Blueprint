@@ -2597,7 +2597,8 @@
     });
     treeCanvas.addEventListener('mousedown', (e) => {
       if (e.target.closest('.tree-node')) return;
-      // Background click → disarm any pending two-click confirmation
+      // Background click → dismiss any node tooltip and disarm any pending confirm
+      hideTooltip();
       if (armedNode !== null) { disarmNode(); renderTree(); }
       dragging = true;
       dragStart = { x: e.clientX, y: e.clientY, vbx: viewBox.x, vby: viewBox.y };
@@ -2710,9 +2711,10 @@
       if (activeTouches.size === 0) {
         touchPanStart = null; pinchStart = null;
         treeCanvas.classList.remove('dragging');
-        // A stationary touch on empty canvas → disarm any pending confirm.
-        if (!touchMoved && armedNode !== null && e && e.target && !e.target.closest('.tree-node')) {
-          disarmNode(); renderTree();
+        // Stationary tap on empty canvas → dismiss tooltip and disarm any pending confirm.
+        if (!touchMoved && e && e.target && !e.target.closest('.tree-node')) {
+          hideTooltip();
+          if (armedNode !== null) { disarmNode(); renderTree(); }
         }
       } else if (activeTouches.size === 1) {
         // second finger lifted — reset to single-finger pan from current pos
