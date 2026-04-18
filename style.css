@@ -2038,7 +2038,10 @@ body {
     overflow-x: auto;
     overflow-y: hidden;
     gap: 6px;
-    padding: 2px 0 4px;
+    /* Divider between the nav/tabs row and the materials row */
+    border-top: 1px solid var(--line-dim);
+    padding: 6px 0 4px;
+    margin-top: 2px;
     -webkit-overflow-scrolling: touch;
   }
   .res-bar::-webkit-scrollbar { height: 3px; }

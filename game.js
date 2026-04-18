@@ -3410,13 +3410,17 @@
   function showModal(title, body, opts = {}) {
     const bg = document.createElement('div');
     bg.className = 'modal-bg';
+    // Confirm buttons for destructive/irreversible actions (reset, prestige, etc.)
+    // default to the warn style so they stand out from the neutral close button.
+    const confirmClass = opts.confirmClass || 'warn';
+    const closeLabel = opts.closeLabel || (opts.confirmLabel ? 'CANCEL' : 'CLOSE');
     bg.innerHTML = `
       <div class="modal">
         <h3>${title}</h3>
         ${body}
         <div class="actions">
-          ${opts.confirmLabel ? `<button class="btn" data-action="confirm">${opts.confirmLabel}</button>` : ''}
-          <button class="btn" data-action="close">${opts.closeLabel || 'CLOSE'}</button>
+          <button class="btn" data-action="close">${closeLabel}</button>
+          ${opts.confirmLabel ? `<button class="btn ${confirmClass}" data-action="confirm">${opts.confirmLabel}</button>` : ''}
         </div>
       </div>
     `;
