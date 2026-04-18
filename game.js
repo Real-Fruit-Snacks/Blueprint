@@ -520,6 +520,155 @@
     },
   };
 
+  // ---------- CHALLENGE MODES ----------
+  // Alternate run types: each starts a fresh prestige run with a constraint
+  // active. Reaching the goal before prestiging grants a permanent reward.
+  // Failure (prestige without goal, or blitz timer expiring) clears the flag
+  // with no penalty — players can retry indefinitely.
+  //
+  // goalSchematics is evaluated against schematicsForPrestige() at the moment
+  // the run ends (via doPrestige or a blitz timer). Constraints are enforced
+  // inline at the relevant call sites (clickResource, researchBuy, buy, tick).
+  const CHALLENGES = {
+    pacifist: {
+      name: 'PACIFIST',
+      desc: 'No manual clicking the whole run. Auto-mine and machines only.',
+      constraintLabel: 'NO CLICKING',
+      rewardLabel: '+1 base auto-click/s',
+      goalSchematics: 30,
+      goalLabel: 'Earn 30 schematics without a click',
+      timerMs: 0,
+      applyReward: (m) => { m.autoClickPerSec += 1; },
+    },
+    blitz: {
+      name: 'BLITZ',
+      desc: 'You have 5 minutes. Earn as many schematics as you can.',
+      constraintLabel: '5:00 TIMER',
+      rewardLabel: '+10% schematic gain',
+      goalSchematics: 25,
+      goalLabel: 'Earn 25 schematics in 5 minutes',
+      timerMs: 5 * 60 * 1000,
+      applyReward: (m) => { m.schematicMul *= 1.10; },
+    },
+    blackout: {
+      name: 'BLACKOUT',
+      desc: 'No research purchases allowed. Tiers may still be unlocked.',
+      constraintLabel: 'NO RESEARCH',
+      rewardLabel: '+15% production',
+      goalSchematics: 40,
+      goalLabel: 'Earn 40 schematics with an empty tree',
+      timerMs: 0,
+      applyReward: (m) => { m.prodMul *= 1.15; },
+    },
+    tall: {
+      name: 'TALL',
+      desc: 'You may own at most 3 of each machine type. Go tall, not wide.',
+      constraintLabel: 'MAX 3 PER TYPE',
+      rewardLabel: '+2% production per unique machine type',
+      goalSchematics: 45,
+      goalLabel: 'Earn 45 schematics with ≤ 3 per machine',
+      timerMs: 0,
+      applyReward: (m) => { m.symbiosis += 0.02; },
+    },
+  };
+
+  // Challenge helpers. Kept inside the IIFE so they close over state; the
+  // actual enforcement lives at the relevant call sites (clickResource etc).
+  function activeChallenge() {
+    const c = state.meta && state.meta.challenge;
+    return (c && c.active) || null;
+  }
+  function challengeUnlocked() {
+    // Available only after the player has completed at least one Publish so
+    // they understand the meta-loop before being asked to restrict it.
+    return (state.meta.publishCount || 0) >= 1;
+  }
+  function evaluateChallenge(id) {
+    const ch = CHALLENGES[id];
+    if (!ch) return false;
+    const sch = schematicsForPrestige();
+    if (sch < ch.goalSchematics) return false;
+    if (id === 'pacifist')  return (state.meta.totalClicks || 0) === 0;
+    if (id === 'blackout')  return !state.meta.currentRunResearchBought;
+    if (id === 'tall') {
+      for (const mid in state.machines) {
+        if ((state.machines[mid] || 0) > 3) return false;
+      }
+      return true;
+    }
+    if (id === 'blitz') {
+      const started = state.meta.challenge.startedAt || Date.now();
+      return (Date.now() - started) <= (CHALLENGES.blitz.timerMs || Infinity);
+    }
+    return true;
+  }
+  function startChallenge(id) {
+    if (!CHALLENGES[id]) return false;
+    if (activeChallenge()) return false;
+    if (!challengeUnlocked()) return false;
+    // Full clean-room run: prestige if possible (credit existing schematics),
+    // else just reset the current run. Either way player starts with an empty
+    // factory for a fair challenge attempt.
+    if (canPrestige()) {
+      doPrestige();
+    } else {
+      // Manual reset without the schematic payout (nothing to pay out anyway).
+      state.resources = emptyResources();
+      state.machines = emptyMachines();
+      state.supports = emptySupports();
+      state.meta.totalProduced = emptyResources();
+      state.meta.currentRunCores = 0;
+      state.meta.currentRunStartAt = Date.now();
+      state.meta.totalClicks = 0;
+      state.meta.clickProgress = { ore: 0, ingot: 0, part: 0, circuit: 0, core: 0, prototype: 0 };
+      state.settings.autoBuy = {};
+      applyStartupBonuses();
+    }
+    state.meta.challenge.active = id;
+    state.meta.challenge.startedAt = Date.now();
+    state.meta.currentRunResearchBought = false;
+    invalidateRM();
+    save();
+    rebuildAll();
+    setTab('factory');
+    toast(`<b>⚠ CHALLENGE STARTED</b><br>${CHALLENGES[id].name} · ${CHALLENGES[id].constraintLabel}`, { duration: 5000 });
+    return true;
+  }
+  function abandonChallenge() {
+    if (!activeChallenge()) return false;
+    state.meta.challenge.active = null;
+    state.meta.challenge.startedAt = 0;
+    invalidateRM();
+    save();
+    rebuildAll();
+    return true;
+  }
+  function completeChallenge(id) {
+    const ch = CHALLENGES[id];
+    if (!ch) return false;
+    state.meta.challenge.completed[id] = Date.now();
+    state.meta.challenge.active = null;
+    state.meta.challenge.startedAt = 0;
+    invalidateRM();
+    audio.achievement();
+    celebrate('milestone', {
+      bannerKind: 'CHALLENGE COMPLETE',
+      bannerMain: ch.name,
+      bannerSub: ch.rewardLabel,
+      particles: 100,
+    });
+    checkAchievements(true);
+    return true;
+  }
+  function failChallenge(id) {
+    // Silent fail — just drop the flag. No penalty, player can retry.
+    state.meta.challenge.active = null;
+    state.meta.challenge.startedAt = 0;
+    invalidateRM();
+    if (id) toast(`<b>Challenge failed</b> — ${(CHALLENGES[id] || {}).name || id}. Try again.`, { duration: 4000 });
+    return true;
+  }
+
   // ---------- ACHIEVEMENTS ----------
   // One-time milestones. Persist across prestige & publish. Each grants a small
   // permanent bonus scaled to the game stage at which it's earned.
@@ -584,6 +733,13 @@
     flash_witness:   { prodMul: 0.08,        label: '+8% production' },
     overlord:        { prodMul: 0.15,        label: '+15% production' },
     marathoner:      { prodMul: 0.10,        label: '+10% production' },
+
+    // CHALLENGE MODES — one per completion, plus a Grandmaster capstone
+    ch_pacifist:     { prodMul: 0.05,        label: '+5% production' },
+    ch_blitz:        { schematicMul: 0.05,   label: '+5% schematics gain' },
+    ch_blackout:     { prodMul: 0.05,        label: '+5% production' },
+    ch_tall:         { prodMul: 0.05,        label: '+5% production' },
+    ch_grandmaster:  { prodMul: 0.20, schematicMul: 0.20, label: '+20% production · +20% schematics' },
   };
 
   const ACHIEVEMENTS = {
@@ -641,6 +797,12 @@
     flash_witness:    { name: 'FLASH',             desc: 'Witness 10 Flash events.',                                  group: 'challenge' },
     overlord:         { name: 'OVERLORD',          desc: 'Own 1,000 machines at once.',                               group: 'challenge' },
     marathoner:       { name: 'MARATHONER',        desc: 'Play for 24 cumulative hours.',                             group: 'challenge' },
+
+    ch_pacifist:      { name: '◆ PACIFIST MODE',   desc: 'Complete the Pacifist challenge.',                          group: 'challenge' },
+    ch_blitz:         { name: '◆ BLITZ MODE',      desc: 'Complete the Blitz challenge.',                             group: 'challenge' },
+    ch_blackout:      { name: '◆ BLACKOUT MODE',   desc: 'Complete the Blackout challenge.',                          group: 'challenge' },
+    ch_tall:          { name: '◆ TALL MODE',       desc: 'Complete the Tall challenge.',                              group: 'challenge' },
+    ch_grandmaster:   { name: '◆ GRANDMASTER',     desc: 'Complete every challenge mode.',                            group: 'challenge' },
   };
 
   // Returns { current, goal } for any achievement so progress bars can render.
@@ -720,6 +882,17 @@
       case 'flash_witness':   return { current: (m.flashesSeen || 0),                                     goal: 10 };
       case 'overlord':        return { current: (m.peakMachines || 0),                                    goal: 1000 };
       case 'marathoner':      return { current: (m.totalPlaytimeMs || 0),                                 goal: 24 * 3600 * 1000 };
+
+      case 'ch_pacifist':     return { current: (m.challenge && m.challenge.completed && m.challenge.completed.pacifist) ? 1 : 0, goal: 1 };
+      case 'ch_blitz':        return { current: (m.challenge && m.challenge.completed && m.challenge.completed.blitz)    ? 1 : 0, goal: 1 };
+      case 'ch_blackout':     return { current: (m.challenge && m.challenge.completed && m.challenge.completed.blackout) ? 1 : 0, goal: 1 };
+      case 'ch_tall':         return { current: (m.challenge && m.challenge.completed && m.challenge.completed.tall)     ? 1 : 0, goal: 1 };
+      case 'ch_grandmaster': {
+        const done = (m.challenge && m.challenge.completed) || {};
+        let c = 0; const total = Object.keys(CHALLENGES).length;
+        for (const k in CHALLENGES) if (done[k]) c++;
+        return { current: c, goal: total };
+      }
     }
     return { current: 0, goal: 1 };
   }
@@ -916,6 +1089,11 @@
         noResearchPrestige: false,
         minMachinePrestige: false,
         noSupportPublish: false,
+        // Challenge modes — active run flag + completion ledger. Purchases of
+        // research during a run toggle currentRunResearchBought so a Blackout
+        // run that broke its own rule mid-way auto-fails.
+        challenge: { active: null, startedAt: 0, completed: {} },
+        currentRunResearchBought: false,
       },
       log: [],
       lastSaveAt: Date.now(),
@@ -1724,9 +1902,17 @@
 
   function researchBuy(id) {
     if (!canResearch(id)) return false;
+    // BLACKOUT: refuse the purchase outright rather than marking the run
+    // tainted. Tier unlocks remain allowed (they're a different currency flow).
+    if (activeChallenge() === 'blackout') {
+      toast('<b>BLACKOUT</b> — research is locked this run.', { duration: 2500 });
+      audio.error();
+      return false;
+    }
     const cost = nodeNextCost(id);
     state.meta.schematics -= cost;
     state.research.levels[id] = (state.research.levels[id] || 0) + 1;
+    state.meta.currentRunResearchBought = true;
     invalidateRM();
     audio.research();
     return true;
@@ -1797,6 +1983,12 @@
       if (b.prototypeMul)  m.prototypeMul *= (1 + b.prototypeMul);
       if (b.clickAdd)      m.clickAdd += b.clickAdd;
     }
+    // challenge layer — each completed challenge grants a permanent bonus.
+    const cc = (state.meta.challenge && state.meta.challenge.completed) || {};
+    for (const id in cc) {
+      const ch = CHALLENGES[id];
+      if (ch && ch.applyReward) ch.applyReward(m);
+    }
     return m;
   }
   function invalidateRM() { runtime.rm = null; }
@@ -1854,6 +2046,8 @@
   // the caller plays a single appropriate sound for the whole batch.
   function buy(id) {
     if (!machineUnlocked(id)) return false;
+    // TALL: hard cap at 3 per machine type. Bulk buys stop early at the cap.
+    if (activeChallenge() === 'tall' && (state.machines[id] || 0) >= 3) return false;
     const cost = machineCost(id);
     if (!canAfford(cost)) return false;
     for (const res in cost) state.resources[res] -= cost[res];
@@ -2170,6 +2364,16 @@
     // OVERLORD achievement — track highest machine-count ever held
     if (totalMachines > (state.meta.peakMachines || 0)) state.meta.peakMachines = totalMachines;
 
+    // BLITZ timer — auto-fail if the 5-minute window expires without a prestige.
+    // Prestige within the window finalises the result via doPrestige().
+    if (activeChallenge() === 'blitz') {
+      const started = state.meta.challenge.startedAt || Date.now();
+      const limit = CHALLENGES.blitz.timerMs;
+      if (Date.now() - started >= limit) {
+        failChallenge('blitz');
+      }
+    }
+
     // HISTORY SAMPLER — record a small snapshot every 15s so the Stats tab can
     // plot curves. Ring-buffered at 240 samples (~1h of wall-clock data).
     const now = Date.now();
@@ -2234,6 +2438,16 @@
 
   function clickResource(res) {
     if (!resourceVisible(res)) return false;
+    // PACIFIST: clicks are silently refused. Show a toast once per attempt so
+    // players aren't confused into thinking the button is broken.
+    if (activeChallenge() === 'pacifist') {
+      if (!runtime.pacifistWarnedAt || Date.now() - runtime.pacifistWarnedAt > 3000) {
+        runtime.pacifistWarnedAt = Date.now();
+        toast('<b>PACIFIST</b> — no manual clicking this run.', { duration: 2200 });
+      }
+      audio.error();
+      return false;
+    }
     const recipe = CLICK_RECIPE[res];
     if (!recipe) return false;
     // Refuse the click if input is unavailable — matches the red "unaffordable" UI state
@@ -2318,6 +2532,22 @@
   }
 
   function doPrestige() {
+    // Resolve any active challenge FIRST — evaluation has to run against the
+    // pre-reset state (totalClicks, machine counts, currentRunResearchBought
+    // all get zeroed below).
+    const ch = activeChallenge();
+    let challengeResolved = null;
+    if (ch) {
+      if (evaluateChallenge(ch)) {
+        // Complete it after normal prestige housekeeping to avoid the
+        // celebrate banner stacking on top of the prestige banner. Remember
+        // the id here and finalise at the end.
+        challengeResolved = { id: ch, win: true };
+      } else {
+        challengeResolved = { id: ch, win: false };
+      }
+    }
+
     const gained = schematicsForPrestige();
     state.meta.schematics += gained;
     state.meta.totalSchematics = (state.meta.totalSchematics || 0) + gained;
@@ -2348,6 +2578,7 @@
     state.meta.currentRunStartAt = Date.now();
     state.meta.totalClicks = 0;
     state.meta.clickProgress = { ore: 0, ingot: 0, part: 0, circuit: 0, core: 0, prototype: 0 };
+    state.meta.currentRunResearchBought = false;
     state.settings.autoBuy = {};
 
     applyStartupBonuses();
@@ -2386,6 +2617,15 @@
     const ms = checkMilestones(prestigeBefore, prestigeAfter, 'schematics');
     if (ms) {
       setTimeout(() => celebrate('milestone', ms), 1400);
+    }
+    // Finalise challenge resolution after the prestige celebration so banners
+    // stack cleanly (prestige → then challenge result).
+    if (challengeResolved) {
+      setTimeout(() => {
+        if (challengeResolved.win) completeChallenge(challengeResolved.id);
+        else failChallenge(challengeResolved.id);
+        save();
+      }, ms ? 2800 : 1400);
     }
     save();
     rebuildAll();
@@ -2462,6 +2702,8 @@
       if (state.meta.noResearchPrestige == null) state.meta.noResearchPrestige = false;
       if (state.meta.minMachinePrestige == null) state.meta.minMachinePrestige = false;
       if (state.meta.noSupportPublish == null) state.meta.noSupportPublish = false;
+      state.meta.challenge = Object.assign({ active: null, startedAt: 0, completed: {} }, state.meta.challenge || {});
+      if (state.meta.currentRunResearchBought == null) state.meta.currentRunResearchBought = false;
       state.meta = Object.assign(freshState().meta, state.meta || {});
       state.meta.totalProduced = Object.assign(emptyResources(), state.meta.totalProduced || {});
       state.meta.lifetimeProduced = Object.assign(emptyResources(), state.meta.lifetimeProduced || {});
@@ -3989,6 +4231,81 @@
   }
 
   // ---------- MASTERY VIEW ----------
+  // ---------- CHALLENGE UI HELPERS ----------
+  function buildChallengesSectionHtml() {
+    if (!challengeUnlocked()) return '';
+    const active = activeChallenge();
+    const completed = (state.meta.challenge && state.meta.challenge.completed) || {};
+    const cards = Object.entries(CHALLENGES).map(([id, ch]) => {
+      const isActive = active === id;
+      const isDone = !!completed[id];
+      let status = 'AVAILABLE';
+      if (isActive) status = 'ACTIVE';
+      else if (isDone) status = 'COMPLETED';
+      return `
+        <div class="challenge-card ${status.toLowerCase()}" data-ch="${id}">
+          <div class="ch-head">
+            <div class="ch-name">◆ ${ch.name}</div>
+            <div class="ch-status ${status.toLowerCase()}">${status}</div>
+          </div>
+          <div class="ch-desc">${ch.desc}</div>
+          <div class="ch-goal">${ch.goalLabel}</div>
+          <div class="ch-reward"><span class="ch-reward-label">REWARD</span> ${ch.rewardLabel}</div>
+          <div class="ch-actions">
+            ${isActive ? '<button class="ch-btn abandon" data-ch-abandon>ABANDON</button>'
+              : isDone ? '<span class="ch-done-tag">◆ COMPLETED</span>'
+              : `<button class="ch-btn start" data-ch-start="${id}" ${canPrestige() || state.meta.prestigeCount === 0 ? '' : 'disabled'}>START</button>`}
+          </div>
+        </div>
+      `;
+    }).join('');
+    const completedCount = Object.keys(completed).length;
+    const total = Object.keys(CHALLENGES).length;
+    return `
+      <div class="section-title">◆ CHALLENGES · <span class="section-dim">${completedCount} / ${total} COMPLETED</span></div>
+      <div class="challenges-grid">${cards}</div>
+    `;
+  }
+
+  // Pinned banner on the factory view while a challenge is running.
+  let challengeBannerEl = null;
+  function renderChallengeBanner() {
+    const active = activeChallenge();
+    if (!active) {
+      if (challengeBannerEl) { challengeBannerEl.remove(); challengeBannerEl = null; }
+      return;
+    }
+    const ch = CHALLENGES[active];
+    if (!ch) return;
+    if (!challengeBannerEl) {
+      challengeBannerEl = document.createElement('div');
+      challengeBannerEl.className = 'challenge-banner';
+      document.body.appendChild(challengeBannerEl);
+    }
+    let timerHtml = '';
+    if (ch.timerMs > 0) {
+      const elapsed = Date.now() - (state.meta.challenge.startedAt || Date.now());
+      const remainMs = Math.max(0, ch.timerMs - elapsed);
+      const rm2 = Math.floor(remainMs / 60000);
+      const rs = Math.floor((remainMs % 60000) / 1000);
+      timerHtml = `<span class="cb-timer">${rm2}:${rs.toString().padStart(2, '0')}</span>`;
+    }
+    const sch = schematicsForPrestige();
+    challengeBannerEl.innerHTML = `
+      <span class="cb-tag">⚠ CHALLENGE</span>
+      <span class="cb-name">${ch.name}</span>
+      <span class="cb-constraint">${ch.constraintLabel}</span>
+      ${timerHtml}
+      <span class="cb-progress">${sch} / ${ch.goalSchematics} ◆</span>
+      <button class="cb-abandon" data-ch-abandon>ABANDON</button>
+    `;
+    challengeBannerEl.querySelector('[data-ch-abandon]').onclick = () => {
+      showModal('ABANDON CHALLENGE?',
+        `<p>Quit <b>${ch.name}</b>. Your current run continues, but no reward.</p>`,
+        { confirmLabel: 'ABANDON', onConfirm: (bg) => { bg.remove(); abandonChallenge(); } });
+    };
+  }
+
   function renderMastery() {
     if (!masteryBodyEl) return;
     const prototypes = state.resources.prototype || 0;
@@ -4091,6 +4408,8 @@
         </div>
       ` : ''}
 
+      ${buildChallengesSectionHtml()}
+
       <div class="section-title">◆ PATENT LIBRARY · SPEND PATENTS FOR PERMANENT BOOSTS</div>
       <div class="patents-grid">${patentCards}</div>
     `;
@@ -4109,6 +4428,26 @@
       const id = btn.dataset.patent;
       btn.addEventListener('click', () => {
         if (buyPatent(id)) renderMastery();
+      });
+    });
+    // Challenge start / abandon buttons
+    masteryBodyEl.querySelectorAll('[data-ch-start]').forEach((btn) => {
+      const id = btn.dataset.chStart;
+      btn.addEventListener('click', () => {
+        const ch = CHALLENGES[id];
+        showModal(`START · ${ch.name}`,
+          `<p>${ch.desc}</p><p><b>Goal:</b> ${ch.goalLabel}</p><p><b>Reward:</b> ${ch.rewardLabel}</p>
+           <p style="color:var(--warn)">This will end your current run and start a fresh one with the constraint active.</p>`,
+          { confirmLabel: 'START', onConfirm: (bg) => { bg.remove(); startChallenge(id); } });
+      });
+    });
+    masteryBodyEl.querySelectorAll('[data-ch-abandon]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const ch = CHALLENGES[activeChallenge()];
+        if (!ch) return;
+        showModal('ABANDON CHALLENGE?',
+          `<p>Quit <b>${ch.name}</b>? Your current run continues but no reward is granted.</p>`,
+          { confirmLabel: 'ABANDON', onConfirm: (bg) => { bg.remove(); abandonChallenge(); } });
       });
     });
 
@@ -4402,6 +4741,7 @@
       lastMasteryRender = Date.now();
     }
     renderOnboarding();
+    renderChallengeBanner();
   }
   let lastStatsRender = 0;
   let lastMasteryRender = 0;

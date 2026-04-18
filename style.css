@@ -352,6 +352,155 @@ body {
   grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
   gap: 10px;
 }
+
+/* ========== CHALLENGE MODES ========== */
+.section-title .section-dim { color: var(--text-dim); font-weight: 400; }
+.challenges-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 12px;
+  margin-bottom: 18px;
+}
+.challenge-card {
+  border: 1px solid var(--line);
+  background: rgba(13, 59, 79, 0.55);
+  padding: 14px 16px;
+  font-family: var(--font-ui);
+  display: flex; flex-direction: column;
+  gap: 8px;
+  position: relative;
+}
+.challenge-card.active {
+  border-color: var(--warn);
+  background: rgba(255, 126, 95, 0.08);
+  box-shadow: 0 0 0 1px rgba(255, 126, 95, 0.25);
+}
+.challenge-card.completed {
+  border-color: var(--ok);
+  background: rgba(120, 224, 143, 0.06);
+}
+.challenge-card .ch-head {
+  display: flex; justify-content: space-between; align-items: baseline;
+}
+.challenge-card .ch-name {
+  font-size: 13px; letter-spacing: 2px; font-weight: 700;
+  color: var(--white);
+}
+.challenge-card.completed .ch-name { color: var(--ok); }
+.challenge-card.active    .ch-name { color: var(--warn); }
+.challenge-card .ch-status {
+  font-size: 9px; letter-spacing: 2px;
+  color: var(--text-dim);
+}
+.challenge-card .ch-status.active    { color: var(--warn); }
+.challenge-card .ch-status.completed { color: var(--ok); }
+.challenge-card .ch-desc {
+  font-size: 11px; color: var(--text); line-height: 1.5;
+}
+.challenge-card .ch-goal {
+  font-size: 10px; letter-spacing: 1px;
+  color: var(--accent);
+  font-family: var(--font-mono);
+}
+.challenge-card .ch-reward {
+  font-size: 10px; color: var(--ok);
+  font-family: var(--font-mono);
+  padding-top: 6px;
+  border-top: 1px dashed var(--line-dim);
+}
+.challenge-card .ch-reward-label {
+  color: var(--text-dim); margin-right: 6px;
+}
+.challenge-card .ch-actions {
+  display: flex; justify-content: flex-end; gap: 6px;
+  margin-top: 4px;
+}
+.challenge-card .ch-btn {
+  font-family: var(--font-ui);
+  font-size: 10px; letter-spacing: 2px; font-weight: 700;
+  padding: 6px 14px;
+  cursor: pointer;
+  border: 1px solid var(--accent);
+  background: transparent;
+  color: var(--accent);
+  transition: background 0.12s, color 0.12s;
+}
+.challenge-card .ch-btn.start:hover {
+  background: var(--accent); color: #1b1200;
+}
+.challenge-card .ch-btn:disabled {
+  border-color: var(--line-dim); color: var(--text-dim);
+  cursor: not-allowed;
+}
+.challenge-card .ch-btn.abandon {
+  border-color: var(--warn); color: var(--warn);
+}
+.challenge-card .ch-btn.abandon:hover {
+  background: var(--warn); color: #1b0a00;
+}
+.challenge-card .ch-done-tag {
+  font-size: 10px; letter-spacing: 2px;
+  color: var(--ok); font-weight: 700;
+}
+
+/* Active-run banner pinned to the top of the factory view. */
+.challenge-banner {
+  position: fixed;
+  left: 0; right: 0;
+  top: 0;
+  z-index: 55;
+  display: flex; align-items: center; justify-content: center;
+  flex-wrap: wrap;
+  gap: 14px;
+  padding: 8px 14px;
+  background: linear-gradient(90deg, rgba(255, 126, 95, 0.15), rgba(255, 126, 95, 0.28), rgba(255, 126, 95, 0.15));
+  border-bottom: 1px solid var(--warn);
+  font-family: var(--font-ui);
+  font-size: 11px; letter-spacing: 1.5px;
+  color: var(--warn);
+  backdrop-filter: blur(4px);
+  animation: cb-slide 0.3s ease-out;
+}
+@keyframes cb-slide {
+  from { transform: translateY(-100%); opacity: 0; }
+  to   { transform: translateY(0);     opacity: 1; }
+}
+.challenge-banner .cb-tag     { font-weight: 700; }
+.challenge-banner .cb-name    { color: var(--white); font-weight: 700; letter-spacing: 2px; }
+.challenge-banner .cb-constraint { color: var(--warn); opacity: 0.8; }
+.challenge-banner .cb-timer   {
+  font-family: var(--font-mono); color: var(--accent);
+  background: rgba(0,0,0,0.3); padding: 3px 8px;
+  border: 1px solid var(--accent);
+}
+.challenge-banner .cb-progress {
+  color: var(--ok); font-family: var(--font-mono);
+}
+.challenge-banner .cb-abandon {
+  font-family: var(--font-ui);
+  font-size: 9px; letter-spacing: 2px; font-weight: 700;
+  padding: 4px 10px;
+  border: 1px solid var(--warn);
+  background: transparent;
+  color: var(--warn);
+  cursor: pointer;
+}
+.challenge-banner .cb-abandon:hover { background: var(--warn); color: #1b0a00; }
+/* When banner is present, push #app down so topbar+content clear it. */
+body:has(.challenge-banner) #app {
+  height: calc(100vh - 36px);
+  margin-top: 36px;
+}
+@media (max-width: 720px) {
+  .challenge-banner {
+    font-size: 9px; gap: 6px; padding: 6px 8px;
+  }
+  .challenge-banner .cb-name { letter-spacing: 1px; }
+  body:has(.challenge-banner) #app {
+    height: calc(100vh - 46px);
+    margin-top: 46px;
+  }
+}
 .patent {
   border: 1px solid var(--line);
   background: rgba(13, 59, 79, 0.5);
