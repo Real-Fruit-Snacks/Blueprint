@@ -359,6 +359,7 @@ body {
   font-family: var(--font-ui);
   position: relative;
   cursor: pointer;
+  text-align: left;
   transition: border-color 0.12s, background 0.12s, box-shadow 0.12s;
 }
 .patent:hover:not(.owned):not(.locked):not(.unaffordable):not(.maxed) {
@@ -2447,6 +2448,11 @@ body:not([data-tab="mastery"]) .patent.affordable { animation: none; }
     flex: none;
     opacity: 1 !important;
     min-height: 0;
+  }
+  /* Keep the mobile sidebar hidden until the factory view actually has one
+     to show — otherwise Publish + Support appear on turn-one of a fresh game. */
+  .factory-view:not(.has-sidebar) .sidebar {
+    display: none !important;
   }
   .side-box.activity-box {
     min-height: 140px;
