@@ -1738,15 +1738,7 @@
     factoryEl.innerHTML = '';
     dom.tiers = {};
 
-    // Mine bar — one big clickable button per unlocked resource.
-    // Populated/updated by renderMineBar() on each frame.
-    const mineCard = document.createElement('div');
-    mineCard.className = 'mine-card';
-    factoryEl.appendChild(mineCard);
-    dom.mineCard = mineCard;
-    prevMineSig = ''; // force renderMineBar to repopulate the fresh empty container
-
-    // BUY MODE BAR
+    // BUY MODE BAR — FIRST child of factoryEl, OUTSIDE the scroll wrapper. Stays pinned at top.
     const buyBar = document.createElement('div');
     buyBar.className = 'buy-mode-bar';
     buyBar.innerHTML = `
@@ -1768,6 +1760,20 @@
         state.settings.buyMode = btn.dataset.mode;
       });
     });
+
+    // Scroll wrapper — mine-card, tier rows, achievements all go here
+    const scrollEl = document.createElement('div');
+    scrollEl.className = 'factory-scroll';
+    factoryEl.appendChild(scrollEl);
+    dom.factoryScroll = scrollEl;
+
+    // Mine bar — one big clickable button per unlocked resource.
+    // Populated/updated by renderMineBar() on each frame.
+    const mineCard = document.createElement('div');
+    mineCard.className = 'mine-card';
+    scrollEl.appendChild(mineCard);
+    dom.mineCard = mineCard;
+    prevMineSig = ''; // force renderMineBar to repopulate the fresh empty container
 
     TIERS.forEach((tier) => {
       const unlocked = tierUnlocked(tier.id);
@@ -1796,7 +1802,7 @@
             <div class="unlock-hint">${hint}</div>
           </div>
         `;
-        factoryEl.appendChild(row);
+        scrollEl.appendChild(row);
         dom.tiers[tier.id] = row;
         return;
       }
@@ -1855,11 +1861,11 @@
         slotsEl.appendChild(slot);
       }
 
-      factoryEl.appendChild(row);
+      scrollEl.appendChild(row);
       dom.tiers[tier.id] = row;
     });
 
-    // ACHIEVEMENTS SECTION (below all tiers)
+    // ACHIEVEMENTS SECTION (below all tiers, inside scroll wrapper)
     const achSection = document.createElement('div');
     achSection.className = 'ach-section';
     achSection.innerHTML = `
@@ -1873,7 +1879,7 @@
       </button>
       <div class="ach-section-body" data-ach-body style="display:none"></div>
     `;
-    factoryEl.appendChild(achSection);
+    scrollEl.appendChild(achSection);
     dom.achSection = achSection;
     dom.achHead = achSection.querySelector('[data-ach-toggle]');
     dom.achChev = achSection.querySelector('[data-ach-chev]');
