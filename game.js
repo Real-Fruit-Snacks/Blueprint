@@ -1646,9 +1646,18 @@
   const tierUnlocksBar = document.getElementById('tier-unlocks-bar');
   const slotTip     = document.getElementById('slot-tip');
   const statsBodyEl = document.getElementById('stats-body');
-  // Coarse pointer / no-hover devices: phones, tablets. Used to swap hover tooltips
-  // for long-press on machine slots so tapping to buy doesn't flash a tooltip every time.
-  const isTouchDevice = !!(window.matchMedia && window.matchMedia('(hover: none)').matches);
+  // Runtime touch tracking. Static matchMedia('(hover: none)') lies on hybrid devices
+  // and under DevTools emulation — so instead we watch for real touchstart events and
+  // suppress the synthetic mouseenter that fires right after a tap.
+  let lastTouchTime = 0;
+  document.addEventListener('touchstart', () => {
+    lastTouchTime = Date.now();
+    // Any pending hover-tip is now stale because the user just tapped.
+    hideSlotTip();
+  }, { passive: true, capture: true });
+  function isSyntheticMouseFromTouch() {
+    return Date.now() - lastTouchTime < 700;
+  }
   const dom = { tiers: {}, mineCard: null, side: {}, treeNodes: {}, treeLines: [], treeLevelTexts: {}, tierUnlockBtns: {} };
 
   // ---------- TABS ----------
@@ -1872,46 +1881,51 @@
             state.settings.autoBuy[id] = !state.settings.autoBuy[id];
           });
         }
-        if (!isTouchDevice) {
-          slot.addEventListener('mouseenter', (e) => showSlotTip(id, e));
-          slot.addEventListener('mousemove', moveSlotTip);
-          slot.addEventListener('mouseleave', hideSlotTip);
-        } else {
-          // Touch devices: long-press (500ms) reveals the machine details instead of
-          // showing a hover tooltip on every tap (which fired after every buy).
-          let pressTimer = null, longPressed = false, pressX = 0, pressY = 0;
-          slot.addEventListener('touchstart', (e) => {
-            const t = e.touches && e.touches[0];
-            if (!t) return;
-            pressX = t.clientX; pressY = t.clientY;
-            longPressed = false;
-            pressTimer = setTimeout(() => {
-              longPressed = true;
-              pressTimer = null;
-              showSlotTip(id, { clientX: pressX, clientY: pressY });
-              haptic(20);
-            }, 450);
-          }, { passive: true });
-          slot.addEventListener('touchmove', (e) => {
-            const t = e.touches && e.touches[0];
-            if (!t || !pressTimer) return;
-            if (Math.hypot(t.clientX - pressX, t.clientY - pressY) > 10) {
-              clearTimeout(pressTimer); pressTimer = null;
-            }
-          }, { passive: true });
-          slot.addEventListener('touchend', (e) => {
-            if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; }
-            if (longPressed) {
-              // Suppress the synthetic click that would otherwise buy after a long-press.
-              e.preventDefault && e.preventDefault();
-              slot.__suppressNextClick = true;
-              setTimeout(() => hideSlotTip(), 2500);
-            }
-          });
-          slot.addEventListener('touchcancel', () => {
-            if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; }
-          }, { passive: true });
-        }
+        // Desktop hover tooltip — guarded against synthetic mouseenter from a touch tap.
+        slot.addEventListener('mouseenter', (e) => {
+          if (isSyntheticMouseFromTouch()) return;
+          showSlotTip(id, e);
+        });
+        slot.addEventListener('mousemove', (e) => {
+          if (isSyntheticMouseFromTouch()) return;
+          moveSlotTip(e);
+        });
+        slot.addEventListener('mouseleave', hideSlotTip);
+
+        // Long-press on touch devices shows the same tooltip. Wired unconditionally —
+        // touch events just never fire on mouse-only machines.
+        let pressTimer = null, longPressed = false, pressX = 0, pressY = 0;
+        slot.addEventListener('touchstart', (e) => {
+          const t = e.touches && e.touches[0];
+          if (!t) return;
+          pressX = t.clientX; pressY = t.clientY;
+          longPressed = false;
+          pressTimer = setTimeout(() => {
+            longPressed = true;
+            pressTimer = null;
+            showSlotTip(id, { clientX: pressX, clientY: pressY });
+            haptic(20);
+          }, 450);
+        }, { passive: true });
+        slot.addEventListener('touchmove', (e) => {
+          const t = e.touches && e.touches[0];
+          if (!t || !pressTimer) return;
+          if (Math.hypot(t.clientX - pressX, t.clientY - pressY) > 10) {
+            clearTimeout(pressTimer); pressTimer = null;
+          }
+        }, { passive: true });
+        slot.addEventListener('touchend', (e) => {
+          if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; }
+          if (longPressed) {
+            // Suppress the synthetic click that would otherwise buy after a long-press.
+            e.preventDefault && e.preventDefault();
+            slot.__suppressNextClick = true;
+            setTimeout(() => hideSlotTip(), 2500);
+          }
+        });
+        slot.addEventListener('touchcancel', () => {
+          if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; }
+        }, { passive: true });
         slotsEl.appendChild(slot);
       }
 
@@ -2694,9 +2708,11 @@
       body += `<div class="srow"><span class="k">LOCKED</span><span class="v warn">Unlock ${m.mk.toUpperCase()} in Research</span></div>`;
     }
 
-    // hints for power users — only on devices with real keyboard/mouse
+    // hints for power users. Once we've seen a touchstart this session we assume
+    // keyboard/mouse shortcuts aren't the user's primary input.
+    const touchMode = lastTouchTime > 0;
     let hint = '';
-    if (!isTouchDevice) {
+    if (!touchMode) {
       if (rm().bulkBuy) hint += 'Shift+click: ×10 · Shift+Alt: ×100. ';
       if (rm().maxBuy)  hint += 'Ctrl+Shift: ×1000. ';
       if (rm().autoBuy) hint += 'Right-click: auto-buy toggle.';
