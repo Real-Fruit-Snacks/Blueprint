@@ -1832,6 +1832,7 @@
           <span class="count" data-count>×0</span>
           <span class="bottleneck" data-bn title="">◇</span>
           <span class="auto-buy" data-auto>●AUTO</span>
+          <button class="auto-chip" data-auto-chip title="Toggle auto-buy" aria-label="Toggle auto-buy">A</button>
           <div class="ico">${m.icon}</div>
           <div class="name">${m.name}</div>
           <div class="cost" data-cost></div>
@@ -1855,6 +1856,14 @@
           if (!rm().autoBuy || !machineUnlocked(id)) return;
           state.settings.autoBuy[id] = !state.settings.autoBuy[id];
         });
+        const autoChip = slot.querySelector('[data-auto-chip]');
+        if (autoChip) {
+          autoChip.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (!rm().autoBuy || !machineUnlocked(id)) return;
+            state.settings.autoBuy[id] = !state.settings.autoBuy[id];
+          });
+        }
         slot.addEventListener('mouseenter', (e) => showSlotTip(id, e));
         slot.addEventListener('mousemove', moveSlotTip);
         slot.addEventListener('mouseleave', hideSlotTip);
@@ -2713,6 +2722,104 @@
       viewBox.w = newW; viewBox.h = newH;
       applyViewBox();
     }, { passive: false });
+
+    // ---------- TOUCH: pan (1 finger) + pinch-zoom (2 fingers) ----------
+    // Stored per active pointer to compute distance deltas for pinch.
+    const activeTouches = new Map(); // id -> { x, y }
+    let touchPanStart = null;        // { x, y, vbx, vby }
+    let pinchStart = null;           // { dist, cx, cy, vbx, vby, vbw, vbh }
+    let touchMoved = false;
+
+    function touchCenter() {
+      let sx = 0, sy = 0, n = 0;
+      for (const p of activeTouches.values()) { sx += p.x; sy += p.y; n++; }
+      return n ? { x: sx / n, y: sy / n } : { x: 0, y: 0 };
+    }
+    function touchDistance() {
+      const pts = [...activeTouches.values()];
+      if (pts.length < 2) return 0;
+      const dx = pts[0].x - pts[1].x, dy = pts[0].y - pts[1].y;
+      return Math.hypot(dx, dy);
+    }
+    treeCanvas.addEventListener('touchstart', (e) => {
+      // Let single-finger taps on nodes through; pan only on empty canvas.
+      // For 2-finger gestures we always take over so pinch works anywhere.
+      if (e.touches.length === 1 && e.target.closest('.tree-node')) return;
+      e.preventDefault();
+      activeTouches.clear();
+      for (const t of e.touches) activeTouches.set(t.identifier, { x: t.clientX, y: t.clientY });
+      touchMoved = false;
+      if (activeTouches.size === 1) {
+        const p = activeTouches.values().next().value;
+        touchPanStart = { x: p.x, y: p.y, vbx: viewBox.x, vby: viewBox.y };
+        pinchStart = null;
+      } else if (activeTouches.size === 2) {
+        const c = touchCenter();
+        pinchStart = {
+          dist: touchDistance(),
+          cx: c.x, cy: c.y,
+          vbx: viewBox.x, vby: viewBox.y,
+          vbw: viewBox.w, vbh: viewBox.h,
+        };
+        touchPanStart = null;
+      }
+      treeCanvas.classList.add('dragging');
+    }, { passive: false });
+
+    treeCanvas.addEventListener('touchmove', (e) => {
+      if (!activeTouches.size) return;
+      e.preventDefault();
+      for (const t of e.touches) {
+        if (activeTouches.has(t.identifier)) activeTouches.set(t.identifier, { x: t.clientX, y: t.clientY });
+      }
+      touchMoved = true;
+      const rect = treeCanvas.getBoundingClientRect();
+      if (activeTouches.size === 1 && touchPanStart) {
+        const p = activeTouches.values().next().value;
+        const scale = viewBox.w / rect.width;
+        viewBox.x = touchPanStart.vbx - (p.x - touchPanStart.x) * scale;
+        viewBox.y = touchPanStart.vby - (p.y - touchPanStart.y) * scale;
+        applyViewBox();
+      } else if (activeTouches.size >= 2 && pinchStart) {
+        const c = touchCenter();
+        const d = touchDistance();
+        if (!d || !pinchStart.dist) return;
+        const zoomFactor = pinchStart.dist / d;
+        const newW = Math.max(400, Math.min(2400, pinchStart.vbw * zoomFactor));
+        const newH = pinchStart.vbh * (newW / pinchStart.vbw);
+        // anchor zoom on the initial pinch center (in canvas coords), then also apply center drift.
+        const ax = (pinchStart.cx - rect.left) / rect.width;
+        const ay = (pinchStart.cy - rect.top) / rect.height;
+        const scale = pinchStart.vbw / rect.width;
+        const dxPx = c.x - pinchStart.cx;
+        const dyPx = c.y - pinchStart.cy;
+        viewBox.x = pinchStart.vbx + (pinchStart.vbw - newW) * ax - dxPx * scale;
+        viewBox.y = pinchStart.vby + (pinchStart.vbh - newH) * ay - dyPx * scale;
+        viewBox.w = newW; viewBox.h = newH;
+        applyViewBox();
+      }
+    }, { passive: false });
+
+    function endTouch(e) {
+      if (e && e.changedTouches) {
+        for (const t of e.changedTouches) activeTouches.delete(t.identifier);
+      }
+      if (activeTouches.size === 0) {
+        touchPanStart = null; pinchStart = null;
+        treeCanvas.classList.remove('dragging');
+        // A stationary touch on empty canvas → disarm any pending confirm.
+        if (!touchMoved && armedNode !== null && e && e.target && !e.target.closest('.tree-node')) {
+          disarmNode(); renderTree();
+        }
+      } else if (activeTouches.size === 1) {
+        // second finger lifted — reset to single-finger pan from current pos
+        const p = activeTouches.values().next().value;
+        touchPanStart = { x: p.x, y: p.y, vbx: viewBox.x, vby: viewBox.y };
+        pinchStart = null;
+      }
+    }
+    treeCanvas.addEventListener('touchend', endTouch, { passive: true });
+    treeCanvas.addEventListener('touchcancel', endTouch, { passive: true });
   }
 
   // ---------- UNLOCK WATCHER ----------
@@ -3117,6 +3224,7 @@
 
         const autoOn = !!state.settings.autoBuy[id];
         slot.classList.toggle('auto-buy-on', autoOn && unlocked);
+        slot.classList.toggle('show-auto-chip', !!rm().autoBuy && unlocked);
       });
     });
   }
@@ -3201,6 +3309,37 @@
   function bindUI() {
     const setBtn = document.getElementById('btn-settings');
     if (setBtn) setBtn.addEventListener('click', showSettings);
+
+    // Fullscreen toggle — hidden on platforms that don't support the API (iOS Safari)
+    const fsBtn = document.getElementById('btn-fullscreen');
+    if (fsBtn) {
+      const fsSupported = !!(document.documentElement.requestFullscreen
+        || document.documentElement.webkitRequestFullscreen);
+      if (!fsSupported) {
+        fsBtn.style.display = 'none';
+      } else {
+        fsBtn.addEventListener('click', () => {
+          const doc = document;
+          const inFs = doc.fullscreenElement || doc.webkitFullscreenElement;
+          if (inFs) {
+            if (doc.exitFullscreen) doc.exitFullscreen();
+            else if (doc.webkitExitFullscreen) doc.webkitExitFullscreen();
+          } else {
+            const el = doc.documentElement;
+            if (el.requestFullscreen) el.requestFullscreen().catch(() => {});
+            else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
+          }
+        });
+        const syncFsState = () => {
+          const inFs = !!(document.fullscreenElement || document.webkitFullscreenElement);
+          fsBtn.classList.toggle('on', inFs);
+          const label = fsBtn.querySelector('.btn-label');
+          if (label) label.textContent = inFs ? 'EXIT FS' : 'FULLSCREEN';
+        };
+        document.addEventListener('fullscreenchange', syncFsState);
+        document.addEventListener('webkitfullscreenchange', syncFsState);
+      }
+    }
     document.getElementById('btn-export').addEventListener('click', () => {
       save();
       showModal('EXPORT SAVE',

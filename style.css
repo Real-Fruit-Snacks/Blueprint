@@ -1043,6 +1043,42 @@ body {
 .slot.auto-buy-on .auto-buy { opacity: 1; }
 .slot.auto-buy-on { border-color: var(--accent); border-style: solid; }
 
+/* auto-buy tap chip — visible on touch devices and when auto-buy research is unlocked.
+   Hidden by default; .show-auto-chip on .slot (toggled in renderFactory) reveals it.
+   On desktop, the chip is still visible but small/subtle; right-click also works. */
+.slot .auto-chip {
+  position: absolute;
+  top: 3px; left: 4px;
+  width: 20px; height: 20px;
+  padding: 0;
+  display: none;
+  align-items: center; justify-content: center;
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: bold;
+  letter-spacing: 0;
+  cursor: pointer;
+  z-index: 2;
+  line-height: 1;
+  transition: color 0.12s, border-color 0.12s, background 0.12s;
+}
+.slot.show-auto-chip .auto-chip { display: inline-flex; }
+.slot .auto-chip:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.slot.auto-buy-on .auto-chip {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: rgba(255, 214, 112, 0.12);
+}
+@media (max-width: 720px) {
+  .slot .auto-chip { width: 24px; height: 24px; font-size: 11px; }
+}
+
 /* tree leveled node indicator (current level count shown just below node) */
 .tree-node .level-text {
   font-size: 9px;
@@ -1561,6 +1597,13 @@ body {
 .btn:active { background: rgba(74, 159, 207, 0.3); }
 .btn.warn { border-color: var(--warn); color: var(--warn); }
 .btn.warn:hover { background: rgba(255, 126, 95, 0.15); color: var(--white); }
+.btn.on { border-color: var(--ok); color: var(--ok); background: rgba(120, 224, 143, 0.08); }
+.btn.btn-fs svg polyline {
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: square;
+  fill: none;
+}
 
 .btn.btn-icon {
   display: inline-flex; align-items: center; gap: 6px;
@@ -1947,4 +1990,338 @@ body {
 .modal .actions {
   margin-top: 14px;
   display: flex; gap: 8px; justify-content: flex-end;
+}
+
+/* ==========================================================
+   MOBILE / TOUCH RESPONSIVE
+   ==========================================================
+   Three tiers:
+     - (hover: none)       → any touch device (hide hover-only reveals)
+     - max-width: 1024px   → tablet / landscape phone (narrower sidebar)
+     - max-width: 720px    → portrait phone (full stacked layout)
+     - max-width+landscape → landscape-phone specific tuning
+*/
+
+/* Touch device general tweaks */
+@media (hover: none) {
+  .log-item .log-close { opacity: 1; }
+  .mine-btn:hover  { background: rgba(255, 214, 112, 0.08); }
+  .tab:hover { /* suppress sticky hover on tap */ }
+  .slot:not(.locked):not(.unaffordable):hover {
+    background: rgba(13, 59, 79, 0.6);
+    border-color: var(--line);
+  }
+  .slot.affordable:hover { background: rgba(120, 224, 143, 0.05); }
+}
+
+/* Tablet / landscape phone */
+@media (max-width: 1024px) {
+  .factory-view.has-sidebar { grid-template-columns: 1fr 240px; }
+  .mastery-view, .stats-view { padding: 20px 18px; }
+}
+
+/* Portrait phone — the main mobile layer */
+@media (max-width: 720px) {
+  html, body { height: 100%; }
+
+  #app {
+    height: 100vh;
+    height: 100svh;
+    grid-template-rows: auto 1fr auto;
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+  }
+
+  /* ----- TOPBAR ----- */
+  .topbar {
+    flex-wrap: wrap;
+    padding: 6px 10px;
+    gap: 6px;
+    min-height: 50px;
+    align-items: center;
+  }
+  .logo { font-size: 11px; letter-spacing: 2px; flex: 0 0 auto; }
+  .tabs {
+    order: 2;
+    flex: 0 0 auto;
+    margin-left: auto;
+    gap: 4px;
+  }
+  .tab {
+    padding: 5px 8px;
+    font-size: 9px;
+    letter-spacing: 1px;
+    min-height: 28px;
+    display: flex; align-items: center;
+  }
+  .res-bar {
+    order: 3;
+    flex-basis: 100%;
+    flex: 1 1 100%;
+    justify-content: flex-start;
+    overflow-x: auto;
+    overflow-y: hidden;
+    gap: 6px;
+    padding: 2px 0 4px;
+    -webkit-overflow-scrolling: touch;
+  }
+  .res-bar::-webkit-scrollbar { height: 3px; }
+  .res {
+    min-width: 96px;
+    padding: 4px 10px 4px 8px;
+    flex: 0 0 auto;
+  }
+  .res .v { font-size: 14px; }
+  .res .l { font-size: 8px; }
+  .res .rate { font-size: 9px; }
+  .res-auto-btn { width: 20px; height: 20px; top: 2px; right: 2px; }
+
+  /* ----- MAIN AREA ----- */
+  .main-area { overflow: hidden; }
+
+  /* Factory view: stack factory over sidebar, scroll whole thing.
+     Scope to .active so we don't override .view:not(.active){display:none}. */
+  .factory-view.active,
+  .factory-view.active.has-sidebar {
+    display: flex;
+    flex-direction: column;
+    grid-template-columns: none;
+    height: 100%;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .factory-view:not(.active) { display: none; }
+  .factory-view.has-sidebar {
+    /* override the desktop 1fr 280px grid-cols on all layout states */
+    grid-template-columns: none;
+  }
+  .factory {
+    flex: none;
+    overflow: visible;
+  }
+  .factory-scroll {
+    flex: none;
+    overflow: visible;
+    padding: 10px 10px 14px;
+    gap: 10px;
+  }
+  .sidebar {
+    border-left: none;
+    border-top: 2px solid var(--line);
+    overflow: visible;
+    padding: 12px 10px;
+    flex: none;
+    opacity: 1 !important;
+    min-height: 0;
+  }
+  .side-box.activity-box {
+    min-height: 140px;
+    max-height: 240px;
+  }
+  .side-box.activity-box .log-list { max-height: 180px; }
+
+  /* ----- BUY MODE BAR ----- */
+  .buy-mode-bar {
+    margin: 8px 10px 0;
+    padding: 6px 8px;
+    gap: 6px;
+    justify-content: center;
+  }
+  .buy-mode-bar .label { font-size: 9px; letter-spacing: 1.5px; width: 100%; text-align: center; }
+  .bm-btn {
+    min-width: 40px; padding: 6px 8px; font-size: 11px; flex: 1;
+    min-height: 34px;
+  }
+
+  /* ----- MINE BAR ----- */
+  .mine-card {
+    gap: 6px;
+    margin: 4px 0 8px;
+  }
+  .mine-btn {
+    min-width: 140px;
+    padding: 8px 12px;
+    flex: 1 1 160px;
+  }
+  .mine-btn .mine-label .n { font-size: 12px; letter-spacing: 1.5px; }
+  .mine-btn .mine-label .d { font-size: 9px; }
+  .mine-btn .mine-progress { min-width: 0; }
+  .mine-btn .mine-progress-text { font-size: 8px; }
+
+  /* ----- TIERS / SLOTS ----- */
+  .tier { padding: 8px; }
+  .tier-head { font-size: 9px; letter-spacing: 1.5px; }
+  .tier-head b { font-size: 10px; }
+  .tier.locked .unlock-hint { font-size: 9px; letter-spacing: 1px; }
+  .slots { grid-template-columns: repeat(auto-fit, minmax(84px, 1fr)); gap: 6px; }
+  .slot {
+    min-height: 78px;
+    padding: 6px 4px;
+    gap: 2px;
+  }
+  .slot .ico { width: 22px; height: 22px; }
+  .slot .name { font-size: 9px; letter-spacing: 0.5px; }
+  .slot .cost { font-size: 9px; }
+  .slot .count { font-size: 9px; top: 2px; right: 4px; }
+  .slot .auto-buy { bottom: 2px; left: 3px; font-size: 8px; }
+
+  /* ----- TREE VIEW ----- */
+  .tree-view { touch-action: none; }
+  .tree-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+    padding: 10px 14px;
+  }
+  .tree-title { font-size: 11px; letter-spacing: 2px; }
+  .tree-rp { gap: 10px; align-items: center; }
+  .rp-big { font-size: 13px; letter-spacing: 1.5px; }
+  .rp-big #rp-value { font-size: 16px; }
+  .rp-rate { font-size: 10px; }
+  .tier-unlocks-bar { padding: 8px 10px; gap: 8px; -webkit-overflow-scrolling: touch; }
+  .tier-unlock { min-width: 120px; padding: 6px 10px; }
+  .tree-canvas { touch-action: none; }
+  .tree-zoom { top: 10px; right: 10px; gap: 6px; }
+  .tree-zoom button {
+    width: 42px; height: 42px;
+  }
+  .tree-zoom button svg { width: 20px; height: 20px; }
+  .tree-legend {
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 6px 12px;
+    font-size: 9px;
+  }
+  .tree-legend .hint { display: none; }
+  .tree-tooltip {
+    width: auto;
+    max-width: calc(100vw - 24px);
+    font-size: 11px;
+    padding: 10px 12px;
+  }
+
+  /* ----- MASTERY / STATS ----- */
+  .mastery-view, .stats-view { padding: 14px 10px; }
+  .mastery-header { flex-direction: column; align-items: flex-start; gap: 10px; }
+  .mastery-stats { gap: 14px; }
+  .mastery-stats .v { font-size: 18px; }
+  .publish-bar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+    padding: 12px 14px;
+  }
+  .publish-bar .pb-gain { text-align: left; margin-right: 0; }
+  .publish-btn { width: 100%; padding: 12px; }
+  .patents-grid { grid-template-columns: 1fr; }
+  .stats-block { padding: 14px; }
+  .stats-block .rows { grid-template-columns: 1fr; }
+
+  /* ----- ACHIEVEMENTS ----- */
+  .ach-grid { grid-template-columns: 1fr; }
+
+  /* ----- BOTTOM BAR ----- */
+  .botbar {
+    padding: 4px 8px;
+    gap: 8px;
+    font-size: 9px;
+    min-height: 34px;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .botbar::-webkit-scrollbar { height: 0; }
+  .botbar > div { flex: 0 0 auto; }
+  .botbar .spacer { flex: 1 0 4px; }
+  .botbar .btn {
+    padding: 6px 8px;
+    font-size: 8px;
+    letter-spacing: 0.5px;
+    min-height: 28px;
+    flex: 0 0 auto;
+  }
+  .botbar .btn .icon { width: 12px; height: 12px; }
+  /* Only hide labels on buttons with an icon — keep text for icon-less ones */
+  .botbar .btn-icon .btn-label { display: none; }
+  .botbar .btn:not(.btn-icon) .btn-label { font-size: 9px; }
+  .botbar .btn-icon { padding: 6px 8px; }
+  .botbar .ver { display: none; }
+
+  /* ----- MODALS ----- */
+  .modal {
+    min-width: 0;
+    max-width: calc(100vw - 24px);
+    padding: 16px;
+    max-height: calc(100vh - 48px);
+    overflow-y: auto;
+  }
+
+  /* ----- TOASTS ----- */
+  .toast-stack {
+    top: auto;
+    bottom: 56px;
+    right: 8px;
+    left: 8px;
+  }
+  .toast { min-width: 0; max-width: 100%; font-size: 11px; }
+
+  /* ----- TOUCH HIT TARGETS ----- */
+  .slot, .mine-btn, .bm-btn, .tab, .btn,
+  .tier-unlock, .patent, .support-btn {
+    touch-action: manipulation;
+  }
+}
+
+/* Landscape-phone specific — compact chrome to maximize play area */
+@media (max-height: 500px) and (orientation: landscape) {
+  #app {
+    grid-template-rows: auto 1fr auto;
+    height: 100vh;
+    height: 100svh;
+  }
+  .topbar {
+    flex-wrap: nowrap;
+    min-height: 40px;
+    padding: 2px 10px;
+    gap: 10px;
+  }
+  .logo { font-size: 11px; letter-spacing: 2px; }
+  .res-bar {
+    order: 0;
+    flex-basis: auto;
+    flex: 1;
+    overflow-x: auto;
+    padding: 0;
+  }
+  .res {
+    min-width: 88px;
+    padding: 3px 8px 3px 6px;
+  }
+  .res .v { font-size: 13px; }
+  .tabs { order: 1; margin-left: 0; }
+
+  .botbar { min-height: 26px; font-size: 8px; padding: 0 8px; }
+  .botbar .btn { padding: 3px 6px; font-size: 8px; min-height: 22px; }
+  .botbar .btn .icon { width: 11px; height: 11px; }
+
+  /* Landscape can still afford the sidebar if width is enough */
+  .factory-view.active.has-sidebar {
+    display: grid;
+    grid-template-columns: 1fr 220px;
+    flex-direction: row;
+    overflow: hidden;
+  }
+  .factory-view.active.has-sidebar .factory { overflow: hidden; }
+  .factory-view.active.has-sidebar .factory-scroll { flex: 1; overflow-y: auto; padding: 8px 10px 12px; }
+  .factory-view.active.has-sidebar .sidebar {
+    border-left: 1px solid var(--line);
+    border-top: none;
+    overflow-y: auto;
+    padding: 10px;
+  }
+
+  .tree-header { flex-direction: row; padding: 6px 14px; }
+  .tree-zoom button { width: 38px; height: 38px; }
 }
