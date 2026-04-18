@@ -2726,8 +2726,7 @@
       : '';
     const burst = `<div class="rn-burst"></div>`;
     const glyph = `<svg viewBox="-10 -10 20 20" class="rn-glyph">${(NODE_GLYPHS[id] || BRANCH_GLYPHS[n.branch] || '')}</svg>`;
-    const check = `<div class="rn-check" aria-hidden="true"></div>`;
-    circle.innerHTML = ringSvg + glyph + check + burst;
+    circle.innerHTML = ringSvg + glyph + burst;
     el.appendChild(circle);
 
     // Level + cost wrap as one block under the circle. The node uses a
@@ -2801,9 +2800,12 @@
 
     const circle = document.createElement('div');
     circle.className = 'rn-circle';
+    // Tier nodes share the rail-node progress ring + burst so owned/unowned
+    // reads the same way as research nodes (full arc = owned).
+    const C = 2 * Math.PI * 17;
     circle.innerHTML =
+      `<svg class="rn-progress" viewBox="-20 -20 40 40"><circle class="rn-progress-arc" cx="0" cy="0" r="17"/></svg>` +
       `<span class="rn-tier">T${tid}</span>` +
-      `<div class="rn-check" aria-hidden="true"></div>` +
       `<div class="rn-burst"></div>`;
     el.appendChild(circle);
 
@@ -2862,28 +2864,34 @@
       }
       if (id === armedNode) el.classList.add('armed');
 
-      if (n.type === 'leveled') {
-        const lvl = nodeLevel(id);
-        const max = nodeMax(id);
-        const lvlEl = el.querySelector('.rn-level');
-        if (lvlEl) {
-          if (lvl <= 0) lvlEl.textContent = '';
-          else if (lvl >= max) lvlEl.textContent = `MAX ${lvl}/${max === 999 ? '∞' : max}`;
-          else lvlEl.textContent = `LV ${lvl}/${max === 999 ? '∞' : max}`;
+      // Level text — always "#/#" for leveled nodes (no "LV" / "MAX" prefix).
+      // Unlock / origin nodes don't have meaningful level counts, so leave
+      // their slot blank.
+      const lvl = nodeLevel(id);
+      const max = nodeMax(id);
+      const lvlEl = el.querySelector('.rn-level');
+      if (lvlEl) {
+        if (n.type === 'leveled') {
+          lvlEl.textContent = `${lvl}/${max === 999 ? '∞' : max}`;
+        } else {
+          lvlEl.textContent = '';
         }
-        // Progress arc: stroke-dasharray is "<filled> <rest>" of the full
-        // circumference. Circle r=17 → circumference ~106.8.
-        const arc = el.querySelector('.rn-progress-arc');
-        if (arc) {
-          const C = 2 * Math.PI * 17;
-          const pct = max > 0 ? Math.min(1, lvl / max) : 0;
-          arc.setAttribute('stroke-dasharray', `${pct * C} ${C}`);
-        }
+      }
+      // Progress arc — leveled nodes show lvl/max fill; unlock / origin
+      // show 0 or 100% (a full arc means "owned"). Same visual language
+      // across every node type.
+      const arc = el.querySelector('.rn-progress-arc');
+      if (arc) {
+        const C = 2 * Math.PI * 17;
+        let pct = 0;
+        if (n.type === 'leveled') pct = max > 0 ? Math.min(1, lvl / max) : 0;
+        else pct = lvl > 0 ? 1 : 0;
+        arc.setAttribute('stroke-dasharray', `${pct * C} ${C}`);
       }
 
       const costEl = el.querySelector('.rn-cost');
       if (costEl) {
-        if (st === 'owned') costEl.textContent = 'OWNED';
+        if (st === 'owned') costEl.textContent = '';
         else if (st === 'locked') costEl.textContent = 'LOCKED';
         else {
           const c = nodeNextCost(id);
@@ -2932,9 +2940,15 @@
         else if (!owned && avail && !afford) el.classList.add('unaffordable');
         const costEl = el.querySelector('.rn-cost');
         if (costEl) {
-          if (owned) costEl.textContent = 'UNLOCKED';
+          if (owned) costEl.textContent = '';
           else if (!avail) costEl.textContent = `REQ T${tid - 1}`;
           else costEl.textContent = `${cost}◆`;
+        }
+        // Progress arc — same language as research nodes: owned = full ring.
+        const arc = el.querySelector('.rn-progress-arc');
+        if (arc) {
+          const C = 2 * Math.PI * 17;
+          arc.setAttribute('stroke-dasharray', `${(owned ? 1 : 0) * C} ${C}`);
         }
       }
       const prog = dom.railProgress['tiers'];

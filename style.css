@@ -1809,41 +1809,8 @@ body {
   transition: stroke-dasharray 0.35s ease-out, stroke 0.12s;
   opacity: 0.85;
 }
-.rail-node.owned .rn-progress-arc { stroke: var(--ok); opacity: 1; }
+.rail-node.owned .rn-progress-arc { opacity: 1; }
 .rail-node.locked .rn-progress-arc { opacity: 0; }
-
-/* Owned check — small badge in the corner of the circle once a node is
-   fully owned / maxed. Clearer than a pure colour swap. */
-.rail-node .rn-check {
-  position: absolute;
-  bottom: -3px;
-  right: -3px;
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  background: var(--ok);
-  border: 1.5px solid var(--bg-deep);
-  opacity: 0;
-  transform: scale(0.6);
-  transition: opacity 0.15s, transform 0.2s;
-  pointer-events: none;
-  z-index: 3;
-}
-.rail-node .rn-check::before {
-  content: '';
-  position: absolute;
-  left: 3px;
-  top: 4px;
-  width: 3px;
-  height: 5px;
-  border-right: 1.5px solid var(--bg-deep);
-  border-bottom: 1.5px solid var(--bg-deep);
-  transform: rotate(45deg);
-}
-.rail-node.owned .rn-check {
-  opacity: 1;
-  transform: scale(1);
-}
 
 /* Purchase burst — an expanding ring that fades out on confirm. Distinct
    element (not ::before which is the inner ring) so both can coexist. */
@@ -1908,21 +1875,25 @@ body {
 .rail-node.available .rn-name        { color: var(--branch-color); }
 .rail-node.available .rn-cost        { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 35%, transparent); }
 
+/* Owned — stay in the branch colour (so each rail reads as a single
+   family) and lean on the full progress ring + solid background to
+   signal ownership instead of a colour swap. */
 .rail-node.owned .rn-circle          {
-  border-color: var(--ok);
+  border-color: var(--branch-color);
   background:
-    radial-gradient(circle at 35% 28%, rgba(255, 255, 255, 0.10), transparent 55%),
-    linear-gradient(180deg, rgba(120, 224, 143, 0.15) 0%, rgba(120, 224, 143, 0.04) 100%);
+    radial-gradient(circle at 35% 28%, rgba(255, 255, 255, 0.12), transparent 55%),
+    linear-gradient(180deg,
+      color-mix(in srgb, var(--branch-color) 22%, var(--bg-dim)) 0%,
+      color-mix(in srgb, var(--branch-color) 8%, var(--bg-deep)) 100%);
 }
-.rail-node.owned .rn-circle::before  { border-color: var(--ok); }
-.rail-node.owned .rn-glyph           { color: var(--ok); }
-.rail-node.owned .rn-name            { color: var(--ok); }
+.rail-node.owned .rn-circle::before  { border-color: var(--branch-color); opacity: 0.7; }
+.rail-node.owned .rn-glyph           { color: var(--branch-color); }
+.rail-node.owned .rn-name            { color: var(--branch-color); }
+.rail-node.owned .rn-level           { color: var(--branch-color); opacity: 0.95; }
 .rail-node.owned .rn-cost            {
-  color: var(--ok);
-  opacity: 0.85;
-  border-color: color-mix(in srgb, var(--ok) 35%, transparent);
+  color: var(--branch-color);
+  opacity: 0;
 }
-.rail-node.owned .rn-level           { color: var(--ok); }
 
 .rail-node.locked                    { cursor: not-allowed; }
 .rail-node.locked .rn-circle         { border-style: dashed; border-color: var(--line-dim); opacity: 0.65; box-shadow: none; }
@@ -1997,7 +1968,7 @@ body {
   color: var(--branch-color);
   line-height: 1;
 }
-.tier-unlock-node.owned .rn-tier { color: var(--ok); }
+.tier-unlock-node.owned .rn-tier { color: var(--branch-color); }
 .tier-unlock-node.locked .rn-tier { color: var(--text-dim); opacity: 0.6; }
 .tier-unlock-node .rn-name {
   text-transform: uppercase;
@@ -2303,7 +2274,7 @@ body:not([data-tab="mastery"]) .patent.affordable { animation: none; }
   .slot .auto-buy { bottom: 2px; left: 3px; font-size: 8px; }
 
   /* ----- TREE VIEW ----- */
-  .tree-view { touch-action: none; }
+  /* Rails scroll natively — no touch-action override. */
   .tree-header {
     flex-direction: column;
     align-items: flex-start;
