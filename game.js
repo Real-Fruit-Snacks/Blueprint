@@ -1439,6 +1439,8 @@
     // spam a banner for every milestone the player already earned. Flipped to
     // false at the end of boot().
     suppressAchievementCelebrate: true,
+    // Per-session gate so the backup-suggested toast fires at most once per load.
+    backupNudged: false,
   };
 
   // ---------- AUDIO ----------
@@ -1997,6 +1999,23 @@
     const h = Math.floor(m / 60);
     return h + 'h ' + (m % 60) + 'm';
   }
+  // Backup reminder — fires once per session after prestige/publish if the player
+  // has at least 30 minutes of playtime AND hasn't exported in the last hour.
+  // Keeps long runs safe without nagging brand-new players.
+  function maybeNudgeBackup() {
+    if (runtime.backupNudged) return;
+    if ((state.meta.totalPlaytimeMs || 0) < 30 * 60 * 1000) return;
+    const last = state.meta.lastExportAt || 0;
+    if (last && Date.now() - last < 60 * 60 * 1000) return;
+    runtime.backupNudged = true;
+    setTimeout(() => {
+      const hint = last
+        ? `Last backup was ${fmtAgo(Date.now() - last)}.`
+        : `You haven't backed up yet.`;
+      toast(`<b>◆ BACKUP SUGGESTED</b><br>${hint} Export from Settings ◆ to keep progress safe.`, { duration: 6000 });
+    }, 3500);
+  }
+
   function fmtAgo(ms) {
     const s = Math.floor(ms / 1000);
     if (s < 60) return s + 's ago';
@@ -2249,6 +2268,7 @@
     }
     const ms = checkMilestones(patentsBefore, patentsAfter, 'patents');
     if (ms) setTimeout(() => celebrate('milestone', ms), 1400);
+    maybeNudgeBackup();
     save();
     rebuildAll();
     setTab('mastery');
@@ -3082,6 +3102,7 @@
         }
       }, delay);
     }
+    maybeNudgeBackup();
     save();
     rebuildAll();
     renderBlueprintChip();
@@ -3740,7 +3761,7 @@
     const groupOrder = ['progress', 'meta', 'scale', 'special', 'challenge'];
     const groupLabels = { progress: 'PROGRESS', meta: 'PRESTIGE & PUBLISH', scale: 'SCALE', special: 'SPECIAL', challenge: 'CHALLENGE' };
     dom.achBody.innerHTML = groupOrder.map(g => `
-      <div class="ach-group">
+      <div class="ach-group" data-ach-group="${g}">
         <div class="ach-group-label">${groupLabels[g]}</div>
         <div class="ach-grid">
           ${groups[g].map(a => {
@@ -3771,6 +3792,7 @@
         </div>
       </div>
     `).join('');
+    dom.achBody.querySelectorAll('.ach-group').forEach(addCornerTicks);
     // Click handler is delegated from dom.achBody itself (see buildFactory) — survives rebuilds.
   }
 
@@ -5086,7 +5108,18 @@
         </div>` : ''}
         <div class="settings-row">
           <span class="label">EXPORT SAVE</span>
-          <button class="btn" id="set-export">EXPORT</button>
+          <span style="display:flex; align-items:center; gap:8px;">
+            <span class="last-backup-pill ${(() => {
+              const last = state.meta.lastExportAt || 0;
+              if (!last) return 'stale';
+              return (Date.now() - last > 60 * 60 * 1000) ? 'stale' : 'fresh';
+            })()}">${(() => {
+              const last = state.meta.lastExportAt || 0;
+              if (!last) return 'LAST · NEVER';
+              return 'LAST · ' + fmtAgo(Date.now() - last);
+            })()}</span>
+            <button class="btn" id="set-export">EXPORT</button>
+          </span>
         </div>
         <div class="settings-row">
           <span class="label">IMPORT SAVE</span>
@@ -5116,6 +5149,10 @@
             <div><b style="color:var(--accent)">DRAG</b> on research tree to pan · <b style="color:var(--accent)">SCROLL</b> to zoom</div>
           `}
         </div>
+      </div>
+      <div class="settings-footer">
+        <span class="sf-brand">◆ BLUEPRINT</span>
+        <span>v${VERSION}</span>
       </div>
     `);
 
@@ -5401,6 +5438,7 @@
     }
   }
   function actionExport() {
+    state.meta.lastExportAt = Date.now();
     save();
     showModal('EXPORT SAVE',
       `<p>Copy this string. Paste it into IMPORT to restore your game.</p>
