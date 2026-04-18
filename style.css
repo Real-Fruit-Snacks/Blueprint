@@ -1490,81 +1490,11 @@ body {
   letter-spacing: 2px;
 }
 
-.tier-unlocks-bar {
-  padding: 12px 16px;
-  border-bottom: 1px solid var(--line);
-  background: rgba(10, 42, 58, 0.7);
-  display: flex;
-  gap: 10px;
-  align-items: stretch;
-  overflow-x: auto;
-}
-.tier-unlocks-bar .t-label { align-self: center; }
-.tier-unlocks-bar .t-label {
-  font-size: 10px; letter-spacing: 2px;
-  color: var(--ok);
-  margin-right: 4px;
-  white-space: nowrap;
-}
-.tier-unlock {
-  border: 1px solid var(--line);
-  background: rgba(13, 59, 79, 0.6);
-  padding: 8px 14px;
-  color: var(--text);
-  font-family: var(--font-mono);
-  cursor: pointer;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 2px;
-  min-width: 130px;
-  transition: background 0.12s, border-color 0.12s;
-}
-.tier-unlock .tu-name,
-.tier-unlock .tu-state {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.tier-unlock:hover:not(.locked):not(.unaffordable):not(.owned) {
-  background: rgba(74, 159, 207, 0.18);
-  border-color: var(--white);
-}
-.tier-unlock.owned {
-  border-style: solid;
-  border-color: var(--ok);
-  background: rgba(120, 224, 143, 0.08);
-  cursor: default;
-}
-.tier-unlock.locked {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-.tier-unlock.unaffordable {
-  opacity: 0.65;
-  cursor: not-allowed;
-}
-.tier-unlock.affordable {
-  border-color: var(--accent);
-  animation: tier-unlock-glow 1.8s ease-in-out infinite;
-}
+/* Legacy shared keyframe — still referenced by .patent.affordable. */
 @keyframes tier-unlock-glow {
   0%, 100% { box-shadow: 0 0 6px rgba(255, 214, 112, 0.35); }
   50%      { box-shadow: 0 0 16px rgba(255, 214, 112, 0.85); }
 }
-.tier-unlock .tu-name {
-  font-family: var(--font-ui);
-  font-size: 11px; letter-spacing: 1px;
-  color: var(--white);
-  font-weight: 600;
-}
-.tier-unlock .tu-state {
-  font-size: 10px; letter-spacing: 1px;
-  color: var(--accent);
-}
-.tier-unlock.owned .tu-state { color: var(--ok); }
-.tier-unlock.unaffordable .tu-state { color: var(--warn); }
-.tier-unlock.locked .tu-state { color: var(--text-dim); }
 
 /* =========================================================================
    RESEARCH · PARALLEL RAILS
@@ -1583,6 +1513,7 @@ body {
 .br-efficiency  { --branch-color: #c39bff; }
 .br-power       { --branch-color: #ffd670; }
 .br-origin      { --branch-color: #ffd670; }
+.br-tiers       { --branch-color: #78e08f; }   /* tier unlocks — ok green */
 
 .rails-scroll {
   flex: 1;
@@ -1775,7 +1706,7 @@ body {
   display: grid;
   grid-template-columns: repeat(8, 1fr);
   align-items: center;
-  min-height: 74px;
+  min-height: 80px;
 }
 
 /* Backbone = dashed horizontal line across the whole track at vertical center.
@@ -1811,13 +1742,18 @@ body {
   z-index: 2;
 }
 
-/* The node itself — stack of name / circle / cost. */
+/* The node itself — name above the circle, sub-block (level + cost) below.
+   Laid out as a 1fr-auto-1fr grid so the circle is always at the vertical
+   centre of the track regardless of how much text sits above/below; that's
+   what keeps the backbone line passing through every circle cleanly. */
 .rail-node {
   position: relative;
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-rows: 1fr auto 1fr;
+  justify-items: center;
   align-items: center;
-  gap: 4px;
+  row-gap: 3px;
+  min-height: 80px;
   cursor: pointer;
   padding: 4px 2px;
   user-select: none;
@@ -1828,15 +1764,17 @@ body {
   transform: translateY(-1px);
 }
 .rail-node .rn-name {
+  grid-row: 1;
+  align-self: end;
   font-size: 8px;
   letter-spacing: 0.8px;
   color: var(--branch-color);
   text-align: center;
   max-width: 90px;
-  line-height: 1.15;
-  min-height: 9px;
+  line-height: 1.2;
 }
 .rail-node .rn-circle {
+  grid-row: 2;
   position: relative;
   width: 32px;
   height: 32px;
@@ -1848,6 +1786,7 @@ body {
   justify-content: center;
   box-sizing: border-box;
   transition: border-width 0.12s, box-shadow 0.2s, background 0.12s;
+  flex-shrink: 0;
 }
 .rail-node .rn-circle::before {
   /* inner schematic ring */
@@ -1866,6 +1805,15 @@ body {
 }
 .rail-node .rn-glyph .glyph {
   fill: var(--branch-color);
+}
+.rail-node .rn-sub {
+  grid-row: 3;
+  align-self: start;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  text-align: center;
 }
 .rail-node .rn-level {
   font-size: 8px;
@@ -1947,6 +1895,32 @@ body {
   animation: rail-node-pulse 0.45s ease-out, rail-node-glow 1.8s ease-in-out infinite 0.45s;
 }
 
+/* Unaffordable — available, prereqs met, but not enough schematics.
+   Muted ring, muted name; cost text shown in warn colour. */
+.rail-node.unaffordable .rn-circle { opacity: 0.7; }
+.rail-node.unaffordable .rn-name   { color: var(--branch-color); opacity: 0.7; }
+.rail-node.unaffordable .rn-cost   { color: var(--warn); }
+
+/* Tier-unlock nodes — circle shows "T#" instead of a glyph. Uses the
+   shared green accent as its branch colour. */
+.tier-unlock-node .rn-tier {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: bold;
+  letter-spacing: 0.5px;
+  color: var(--branch-color);
+  line-height: 1;
+}
+.tier-unlock-node.owned .rn-tier { color: var(--ok); }
+.tier-unlock-node.locked .rn-tier { color: var(--text-dim); opacity: 0.6; }
+.tier-unlock-node .rn-name {
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 80px;
+}
+
 /* Progress counter on the right end of each rail. */
 .rail-progress {
   font-family: var(--font-mono);
@@ -1968,8 +1942,7 @@ body {
 
 /* Pause the rails' pulsing animations when another tab is active. */
 body:not([data-tab="tree"]) .rail-node.affordable .rn-circle,
-body:not([data-tab="tree"]) .rail-node.armed .rn-circle,
-body:not([data-tab="tree"]) .tier-unlock.affordable {
+body:not([data-tab="tree"]) .rail-node.armed .rn-circle {
   animation: none;
 }
 body:not([data-tab="achievements"]) .ach.new,
@@ -2256,8 +2229,6 @@ body:not([data-tab="mastery"]) .patent.affordable { animation: none; }
   .rp-big { font-size: 13px; letter-spacing: 1.5px; }
   .rp-big #rp-value { font-size: 16px; }
   .rp-rate { font-size: 10px; }
-  .tier-unlocks-bar { padding: 8px 10px; gap: 8px; -webkit-overflow-scrolling: touch; }
-  .tier-unlock { min-width: 130px; padding: 8px 10px; min-height: 52px; }
   /* Rails sheet on mobile — reduce padding and let horizontal scroll kick in
      once the 8-tier grid no longer fits in the viewport. */
   .rails-scroll { padding: 12px; }
@@ -2266,10 +2237,13 @@ body:not([data-tab="mastery"]) .patent.affordable { animation: none; }
   .rail { grid-template-columns: 100px 1fr 60px; column-gap: 8px; padding: 10px 0; }
   .rail-label { font-size: 11px; letter-spacing: 1.6px; gap: 6px; }
   .rail-label .rl-glyph { width: 10px; height: 10px; }
+  .rail-node { min-height: 72px; }
+  .rail-track { min-height: 72px; }
   .rail-node .rn-circle { width: 28px; height: 28px; }
   .rail-node .rn-glyph { width: 12px; height: 12px; }
   .rail-node .rn-name { font-size: 7px; max-width: 70px; }
   .rail-node .rn-cost, .rail-node .rn-level { font-size: 7px; }
+  .tier-unlock-node .rn-tier { font-size: 10px; }
   .rail-progress { font-size: 11px; }
   .rail-progress b { font-size: 14px; }
   .tree-tooltip {
@@ -2322,7 +2296,7 @@ body:not([data-tab="mastery"]) .patent.affordable { animation: none; }
 
   /* ----- TOUCH HIT TARGETS ----- */
   .slot, .mine-btn, .bm-btn, .tab, .btn,
-  .tier-unlock, .patent, .support-btn {
+  .rail-node, .patent, .support-btn {
     touch-action: manipulation;
   }
 }

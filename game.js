@@ -1847,7 +1847,6 @@
   const tabMasteryEl = document.getElementById('tab-mastery');
   const masteryBodyEl = document.getElementById('mastery-body');
   const achievementsBodyEl = document.getElementById('achievements-body');
-  const tierUnlocksBar = document.getElementById('tier-unlocks-bar');
   const toastStackEl = document.getElementById('toast-stack');
   const statsBodyEl = document.getElementById('stats-body');
   // Runtime touch tracking. Static matchMedia('(hover: none)') lies on hybrid devices
@@ -1860,7 +1859,7 @@
   function isSyntheticMouseFromTouch() {
     return Date.now() - lastTouchTime < 700;
   }
-  const dom = { tiers: {}, mineCard: null, side: {}, tierUnlockBtns: {}, railNodes: {}, railProgress: {}, railBackboneFills: {}, railRails: {} };
+  const dom = { tiers: {}, mineCard: null, side: {}, railNodes: {}, railProgress: {}, railBackboneFills: {}, railRails: {}, tierRailNodes: {} };
 
   // ---------- TABS ----------
   function setTab(name) {
@@ -2447,53 +2446,6 @@
   }
 
   // ---------- TIER UNLOCKS BAR ----------
-  function buildTierUnlocksBar() {
-    tierUnlocksBar.innerHTML = '';
-    dom.tierUnlockBtns = {};
-    const label = document.createElement('div');
-    label.className = 't-label';
-    label.textContent = '◆ TIER UNLOCKS';
-    tierUnlocksBar.appendChild(label);
-    for (const tid of [2, 3, 4, 5, 6]) {
-      const tu = TIER_UNLOCKS[tid];
-      const btn = document.createElement('button');
-      btn.className = 'tier-unlock';
-      btn.dataset.tier = tid;
-      btn.innerHTML = `
-        <div class="tu-name">${tu.name}</div>
-        <div class="tu-state" data-state></div>
-      `;
-      btn.addEventListener('click', () => {
-        if (buyTierUnlock(tid)) {
-          renderTierUnlocksBar();
-          buildFactory();
-          buildResBar();
-          renderRails();
-        }
-      });
-      tierUnlocksBar.appendChild(btn);
-      dom.tierUnlockBtns[tid] = btn;
-    }
-  }
-  function renderTierUnlocksBar() {
-    for (const tid of [2, 3, 4, 5, 6]) {
-      const btn = dom.tierUnlockBtns[tid];
-      if (!btn) continue;
-      const owned = tierUnlocked(tid);
-      const avail = tierUnlockAvailable(tid);
-      const cost = tierUnlockCost(tid);
-      const afford = state.meta.schematics >= cost;
-      btn.classList.toggle('owned', owned);
-      btn.classList.toggle('locked', !owned && !avail);
-      btn.classList.toggle('unaffordable', !owned && avail && !afford);
-      btn.classList.toggle('affordable', !owned && avail && afford);
-      const stateEl = btn.querySelector('[data-state]');
-      if (owned) stateEl.textContent = '◆ UNLOCKED';
-      else if (!avail) stateEl.textContent = `Req T${tid - 1}`;
-      else stateEl.textContent = `${cost} schematic${cost > 1 ? 's' : ''}`;
-    }
-  }
-
   // ---------- RESEARCH TREE (parallel rails) ----------
   // Each branch becomes a horizontal "assembly track" — 8 tier slots laid out
   // left→right, with a backbone line running through them and a progress
@@ -2597,6 +2549,56 @@
     }
     for (const b in byBranch) byBranch[b].sort((a, b) => a.r - b.r);
 
+    // Tier-unlocks rail — factory tier gates sit at the top of the rails,
+    // in the same visual language as the research nodes. T2..T6 drop into
+    // columns R1..R5, leaving R6..R8 empty (they only go up to six).
+    {
+      const rail = document.createElement('div');
+      rail.className = 'rail rail-tiers br-tiers';
+      rail.dataset.branch = 'tiers';
+
+      const label = document.createElement('div');
+      label.className = 'rail-label';
+      label.innerHTML = `
+        <span class="rl-glyph"></span>
+        <span class="rl-name">TIER UNLOCKS</span>
+      `;
+      rail.appendChild(label);
+
+      const track = document.createElement('div');
+      track.className = 'rail-track';
+      const backbone = document.createElement('div');
+      backbone.className = 'rail-backbone';
+      const bbFill = document.createElement('div');
+      bbFill.className = 'rail-backbone-fill';
+      backbone.appendChild(bbFill);
+      track.appendChild(backbone);
+      dom.railBackboneFills['tiers'] = bbFill;
+
+      dom.tierRailNodes = {};
+      for (let r = 1; r <= RAILS_TIERS; r++) {
+        const cell = document.createElement('div');
+        cell.className = 'rail-cell';
+        cell.dataset.ring = r;
+        const tid = r + 1; // R1 = T2, R2 = T3, ... R5 = T6
+        if (tid >= 2 && tid <= 6) {
+          const node = buildTierUnlockNode(tid);
+          cell.appendChild(node);
+          dom.tierRailNodes[tid] = node;
+        }
+        track.appendChild(cell);
+      }
+      rail.appendChild(track);
+
+      const prog = document.createElement('div');
+      prog.className = 'rail-progress';
+      prog.innerHTML = `<b data-prog-owned>0</b><span class="rp-sep">/</span><span class="rp-max">5</span>`;
+      rail.appendChild(prog);
+      dom.railProgress['tiers'] = prog;
+
+      body.appendChild(rail);
+    }
+
     BRANCH_DISPLAY_ORDER.forEach(branchId => {
       if (!byBranch[branchId]) return;
       const rail = document.createElement('div');
@@ -2668,15 +2670,19 @@
     circle.innerHTML = `<svg viewBox="-10 -10 20 20" class="rn-glyph">${BRANCH_GLYPHS[n.branch] || ''}</svg>`;
     el.appendChild(circle);
 
-    if (n.type === 'leveled') {
-      const lvl = document.createElement('div');
-      lvl.className = 'rn-level';
-      el.appendChild(lvl);
-    }
-
+    // Level + cost wrap as one block under the circle. The node uses a
+    // 1fr-auto-1fr grid so the circle always sits at the vertical centre
+    // of the track (and therefore on the backbone) regardless of whether
+    // a node has level text or not.
+    const sub = document.createElement('div');
+    sub.className = 'rn-sub';
+    const lvl = document.createElement('div');
+    lvl.className = 'rn-level';
+    sub.appendChild(lvl);
     const cost = document.createElement('div');
     cost.className = 'rn-cost';
-    el.appendChild(cost);
+    sub.appendChild(cost);
+    el.appendChild(sub);
 
     el.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -2714,6 +2720,58 @@
       hideTooltip();
     });
     el.addEventListener('mousemove', moveTooltip);
+
+    return el;
+  }
+
+  // Tier-unlock node: same visual language as research nodes but wired to
+  // the tier-unlock buy flow. One click purchases when affordable; no arm
+  // step since tier unlocks are one-way and the cost is always visible.
+  function buildTierUnlockNode(tid) {
+    const tu = TIER_UNLOCKS[tid];
+    const el = document.createElement('div');
+    el.className = 'rail-node tier-unlock-node br-tiers';
+    el.dataset.tier = tid;
+
+    const name = document.createElement('div');
+    name.className = 'rn-name';
+    // "T2 · SMELTING" — split onto two lines for compactness
+    name.textContent = tu.name.replace(/^T\d+ · /, '');
+    el.appendChild(name);
+
+    const circle = document.createElement('div');
+    circle.className = 'rn-circle';
+    circle.innerHTML = `<span class="rn-tier">T${tid}</span>`;
+    el.appendChild(circle);
+
+    // Match the research-node sub-wrap layout so tier nodes align on the
+    // same backbone.
+    const sub = document.createElement('div');
+    sub.className = 'rn-sub';
+    const lvl = document.createElement('div');
+    lvl.className = 'rn-level';
+    sub.appendChild(lvl);
+    const cost = document.createElement('div');
+    cost.className = 'rn-cost';
+    sub.appendChild(cost);
+    el.appendChild(sub);
+
+    el.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (typeof e.clientX === 'number' && (e.clientX || e.clientY)) {
+        lastTipMouse.x = e.clientX; lastTipMouse.y = e.clientY;
+      }
+      if (tierUnlocked(tid)) return;
+      if (!tierUnlockAvailable(tid)) return;
+      if (state.meta.schematics < tierUnlockCost(tid)) { haptic(8); return; }
+      if (buyTierUnlock(tid)) {
+        pulseNode(el);
+        haptic(20);
+        renderRails();
+        buildFactory();
+        buildResBar();
+      }
+    });
 
     return el;
   }
@@ -2782,6 +2840,46 @@
         fill.style.width = pct + '%';
       }
     });
+
+    // Tier-unlock rail — separate loop because tier nodes aren't in TREE_NODES
+    // and use the tier-unlock state machine (owned / available / locked /
+    // unaffordable) rather than the research one.
+    if (dom.tierRailNodes) {
+      let tiersOwned = 0;
+      for (const tidStr in dom.tierRailNodes) {
+        const tid = +tidStr;
+        const el = dom.tierRailNodes[tid];
+        const owned = tierUnlocked(tid);
+        const avail = tierUnlockAvailable(tid);
+        const cost = tierUnlockCost(tid);
+        const afford = state.meta.schematics >= cost;
+        el.classList.remove('owned', 'available', 'locked', 'affordable', 'armed', 'unaffordable');
+        if (owned) { el.classList.add('owned'); tiersOwned++; }
+        else if (!avail) el.classList.add('locked');
+        else el.classList.add('available');
+        if (!owned && avail && afford) el.classList.add('affordable');
+        else if (!owned && avail && !afford) el.classList.add('unaffordable');
+        const costEl = el.querySelector('.rn-cost');
+        if (costEl) {
+          if (owned) costEl.textContent = 'UNLOCKED';
+          else if (!avail) costEl.textContent = `REQ T${tid - 1}`;
+          else costEl.textContent = `${cost}◆`;
+        }
+      }
+      const prog = dom.railProgress['tiers'];
+      if (prog) {
+        const b = prog.querySelector('[data-prog-owned]');
+        if (b) b.textContent = tiersOwned;
+        prog.classList.toggle('complete', tiersOwned >= 5);
+      }
+      const fill = dom.railBackboneFills['tiers'];
+      if (fill) {
+        // 5 tiers occupy the first 5 of 8 columns — fill up to the last
+        // owned node's column center.
+        const pct = tiersOwned === 0 ? 0 : ((tiersOwned - 0.5) / RAILS_TIERS) * 100;
+        fill.style.width = pct + '%';
+      }
+    }
 
     // Origin row — big "click to begin" prompt before it's owned, compact
     // "network active" marker after. Done here (not in the main loop) because
@@ -2955,7 +3053,7 @@
   }
 
   function rebuildAll() {
-    buildResBar(); buildFactory(); buildSidebar(); buildTierUnlocksBar(); buildRails();
+    buildResBar(); buildFactory(); buildSidebar(); buildRails();
     buildAchievementsView();
     tabTreeEl.classList.toggle('hidden', !treeTabVisible());
     tabStatsEl.classList.toggle('hidden', !statsTabVisible());
@@ -3444,7 +3542,8 @@
       }
     }
 
-    renderTierUnlocksBar();
+    // Tier-unlock state is part of the rails; render it there.
+    if (state.meta.currentTab === 'tree') renderRails();
   }
 
   function render() {
