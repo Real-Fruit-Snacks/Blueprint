@@ -715,48 +715,7 @@ body {
 }
 .ach.new .ach-bonus.active { color: var(--accent); border-left-color: var(--accent); background: rgba(255, 214, 112, 0.08); }
 
-/* ========== MACHINE SLOT TOOLTIP ========== */
-.slot-tip {
-  position: fixed;
-  border: 1px solid var(--line);
-  background: rgba(13, 59, 79, 0.97);
-  padding: 10px 14px;
-  min-width: 200px;
-  max-width: 260px;
-  font-family: var(--font-ui);
-  font-size: 11px;
-  z-index: 40;
-  pointer-events: none;
-  box-shadow: 0 4px 20px rgba(0,0,0,0.5);
-}
-.slot-tip .stn {
-  color: var(--accent);
-  font-weight: bold; letter-spacing: 1.5px;
-  font-size: 13px;
-  margin-bottom: 6px;
-  padding-bottom: 4px;
-  border-bottom: 1px solid var(--line-dim);
-}
-.slot-tip .srow {
-  display: flex; justify-content: space-between;
-  font-size: 11px;
-  padding: 2px 0;
-  color: var(--text);
-}
-.slot-tip .srow .k { color: var(--text-dim); font-size: 10px; letter-spacing: 1px; }
-.slot-tip .srow .v { font-family: var(--font-mono); color: var(--white); }
-.slot-tip .srow .v.ok   { color: var(--ok); }
-.slot-tip .srow .v.warn { color: var(--warn); }
-.slot-tip .sep {
-  margin: 6px 0;
-  border-top: 1px dashed var(--line-dim);
-}
-.slot-tip .stip-hint {
-  font-size: 10px; color: var(--text-dim);
-  letter-spacing: 1px;
-  margin-top: 6px;
-  font-family: var(--font-mono);
-}
+/* Machine-slot info is now shown via .toast popups — no dedicated tooltip element. */
 
 /* ========== SETTINGS MODAL ========== */
 .settings-group {
@@ -821,13 +780,20 @@ body {
   font-family: var(--font-ui);
   font-size: 12px;
   color: var(--white);
-  letter-spacing: 0.5px;
+  letter-spacing: 0.3px;
+  line-height: 1.5;
   min-width: 240px;
   max-width: 340px;
   box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+  cursor: pointer;
+  pointer-events: auto;
   animation: toast-in 0.3s ease-out, toast-out 0.4s ease-in 3.6s forwards;
 }
-.toast b { color: var(--accent); }
+.toast:hover { border-color: var(--white); }
+.toast b    { color: var(--accent); }
+.toast .ok   { color: var(--ok); }
+.toast .warn { color: var(--warn); }
+.toast .dim  { color: var(--text-dim); font-size: 11px; }
 .toast.ok { border-color: var(--ok); }
 .toast.ok b { color: var(--ok); }
 @keyframes toast-in  { from { opacity: 0; transform: translateX(16px); } to { opacity: 1; transform: translateX(0); } }
@@ -2217,7 +2183,7 @@ body {
   /* ----- TOASTS ----- */
   .toast-stack {
     top: auto;
-    bottom: 56px;
+    bottom: 16px;
     right: 8px;
     left: 8px;
   }

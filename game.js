@@ -1644,7 +1644,7 @@
   const masteryBodyEl = document.getElementById('mastery-body');
   const achievementsBodyEl = document.getElementById('achievements-body');
   const tierUnlocksBar = document.getElementById('tier-unlocks-bar');
-  const slotTip     = document.getElementById('slot-tip');
+  const toastStackEl = document.getElementById('toast-stack');
   const statsBodyEl = document.getElementById('stats-body');
   // Runtime touch tracking. Static matchMedia('(hover: none)') lies on hybrid devices
   // and under DevTools emulation — so instead we watch for real touchstart events and
@@ -1652,8 +1652,6 @@
   let lastTouchTime = 0;
   document.addEventListener('touchstart', () => {
     lastTouchTime = Date.now();
-    // Any pending hover-tip is now stale because the user just tapped.
-    hideSlotTip();
   }, { passive: true, capture: true });
   function isSyntheticMouseFromTouch() {
     return Date.now() - lastTouchTime < 700;
@@ -1881,23 +1879,22 @@
             state.settings.autoBuy[id] = !state.settings.autoBuy[id];
           });
         }
-        // Desktop hover tooltip — guarded against synthetic mouseenter from a touch tap.
-        slot.addEventListener('mouseenter', (e) => {
+        // Hover on desktop with a 500ms dwell before showing an info toast — so
+        // flitting the mouse across rows doesn't spam the stack. Only one toast
+        // per hover window; we track it so we can cancel if the user leaves early.
+        let hoverTimer = null;
+        slot.addEventListener('mouseenter', () => {
           if (isSyntheticMouseFromTouch()) return;
-          showSlotTip(id, e);
-        });
-        slot.addEventListener('mousemove', (e) => {
-          if (isSyntheticMouseFromTouch()) return;
-          moveSlotTip(e);
+          hoverTimer = setTimeout(() => {
+            hoverTimer = null;
+            showToast(machineInfoHtml(id));
+          }, 500);
         });
         slot.addEventListener('mouseleave', () => {
-          // Synthetic mouseleave fires right after touchend — skip it so the
-          // long-press tooltip can live out its 2.5s timeout instead of vanishing.
-          if (isSyntheticMouseFromTouch()) return;
-          hideSlotTip();
+          if (hoverTimer) { clearTimeout(hoverTimer); hoverTimer = null; }
         });
 
-        // Long-press on touch devices shows the same tooltip. Wired unconditionally —
+        // Long-press on touch pops the same toast. Wired unconditionally —
         // touch events just never fire on mouse-only machines.
         let pressTimer = null, longPressed = false, pressX = 0, pressY = 0;
         slot.addEventListener('touchstart', (e) => {
@@ -1908,7 +1905,7 @@
           pressTimer = setTimeout(() => {
             longPressed = true;
             pressTimer = null;
-            showSlotTip(id, { clientX: pressX, clientY: pressY });
+            showToast(machineInfoHtml(id));
             haptic(20);
           }, 450);
         }, { passive: true });
@@ -1925,7 +1922,6 @@
             // Suppress the synthetic click that would otherwise buy after a long-press.
             e.preventDefault && e.preventDefault();
             slot.__suppressNextClick = true;
-            setTimeout(() => hideSlotTip(), 2500);
           }
         });
         slot.addEventListener('touchcancel', () => {
@@ -2669,83 +2665,56 @@
   }
   function hideTooltip() { treeTip.style.display = 'none'; }
 
-  // ---------- SLOT TOOLTIP ----------
-  let slotTipMouse = { x: 0, y: 0 };
-  function showSlotTip(id, e) {
+  // ---------- TOASTS ----------
+  // Fire-and-forget info popups that slide in from the side, linger a few
+  // seconds, and fade on their own. Replaces the persistent hover tooltip
+  // on machine slots so info comes and goes instead of sticking around.
+  function showToast(html, opts = {}) {
+    if (!toastStackEl) return null;
+    const el = document.createElement('div');
+    el.className = 'toast' + (opts.kind ? ' ' + opts.kind : '');
+    el.innerHTML = html;
+    // Tap/click anywhere on the toast to dismiss early.
+    el.addEventListener('click', () => el.remove());
+    toastStackEl.appendChild(el);
+    // CSS animation handles the fade-out timing; remove from DOM when it ends.
+    const drop = () => { if (el.parentNode) el.remove(); };
+    setTimeout(drop, opts.duration || 4200);
+    return el;
+  }
+
+  function machineInfoHtml(id) {
     const m = MACHINES[id];
-    if (!m) return;
-    slotTipMouse.x = e.clientX; slotTipMouse.y = e.clientY;
+    if (!m) return '';
     const count = state.machines[id] || 0;
     const unlocked = machineUnlocked(id);
-    const r = rm();
+    if (!unlocked) {
+      return `<b>${m.name}</b><br><span class="warn">LOCKED · Unlock ${m.mk.toUpperCase()} in Research</span>`;
+    }
     let totalMachines = 0;
     for (const mid in state.machines) totalMachines += state.machines[mid] || 0;
     const prodMul = globalProdMul(totalMachines);
     const consMul = globalConsMul();
-    const cost = machineCost(id);
-    const afford = canAfford(cost);
     const ratio = runtime.machineRatio[id] ?? 1;
     const bn = runtime.bottleneck[id];
+    const cost = machineCost(id);
+    const afford = canAfford(cost);
 
-    let body = '';
-    // produces
-    const produces = Object.entries(m.produces);
-    if (produces.length) {
-      body += `<div class="srow"><span class="k">PRODUCES</span><span class="v ok">${produces.map(([res, rate]) => fmt(rate * prodMul) + ' ' + res + '/s').join(' · ')}</span></div>`;
-      if (count > 0) {
-        body += `<div class="srow"><span class="k">TOTAL OUT</span><span class="v ok">${produces.map(([res, rate]) => fmt(rate * count * prodMul * ratio) + ' ' + res + '/s').join(' · ')}</span></div>`;
-      }
-    }
-    // consumes
-    const consumes = Object.entries(m.consumes);
-    if (consumes.length) {
-      body += `<div class="srow"><span class="k">CONSUMES</span><span class="v">${consumes.map(([res, rate]) => fmt(rate * consMul) + ' ' + res + '/s').join(' · ')}</span></div>`;
-    }
-    if (bn && count > 0) {
-      body += `<div class="srow"><span class="k">STATUS</span><span class="v warn">STARVED OF ${bn.toUpperCase()}</span></div>`;
-    }
-    body += `<div class="sep"></div>`;
-    if (unlocked) {
-      const costStr = Object.entries(cost).map(([res, amt]) => fmt(amt) + ' ' + res).join(' · ');
-      body += `<div class="srow"><span class="k">NEXT COST</span><span class="v ${afford ? 'ok' : 'warn'}">${costStr}</span></div>`;
-      body += `<div class="srow"><span class="k">OWNED</span><span class="v">×${count}</span></div>`;
-    } else {
-      body += `<div class="srow"><span class="k">LOCKED</span><span class="v warn">Unlock ${m.mk.toUpperCase()} in Research</span></div>`;
-    }
+    const prodParts = Object.entries(m.produces).map(([res, rate]) => `+${fmt(rate * prodMul)} ${res}/s`);
+    const consParts = Object.entries(m.consumes).map(([res, rate]) => `-${fmt(rate * consMul)} ${res}/s`);
+    const costStr = Object.entries(cost).map(([res, amt]) => `${fmt(amt)} ${res}`).join(' + ');
+    const totalOut = count > 0
+      ? Object.entries(m.produces).map(([res, rate]) => `+${fmt(rate * count * prodMul * ratio)} ${res}/s`).join(' · ')
+      : '';
 
-    // hints for power users. Once we've seen a touchstart this session we assume
-    // keyboard/mouse shortcuts aren't the user's primary input.
-    const touchMode = lastTouchTime > 0;
-    let hint = '';
-    if (!touchMode) {
-      if (rm().bulkBuy) hint += 'Shift+click: ×10 · Shift+Alt: ×100. ';
-      if (rm().maxBuy)  hint += 'Ctrl+Shift: ×1000. ';
-      if (rm().autoBuy) hint += 'Right-click: auto-buy toggle.';
-    } else {
-      if (rm().autoBuy) hint += 'Tap the "A" chip to toggle auto-buy.';
-    }
-    if (hint) body += `<div class="stip-hint">${hint}</div>`;
-
-    slotTip.innerHTML = `<div class="stn">${m.name}</div>${body}`;
-    slotTip.style.display = 'block';
-    positionSlotTip();
+    let lines = [];
+    lines.push(`<b>${m.name}</b>${count > 0 ? ' ×' + count : ''}`);
+    if (prodParts.length) lines.push(prodParts.join(' · ') + (totalOut ? ` <span class="dim">(total ${totalOut})</span>` : ''));
+    if (consParts.length) lines.push(consParts.join(' · '));
+    if (bn && count > 0)  lines.push(`<span class="warn">Starved of ${bn}</span>`);
+    lines.push(`Next: <span class="${afford ? 'ok' : 'warn'}">${costStr}</span>`);
+    return lines.join('<br>');
   }
-  function moveSlotTip(e) {
-    slotTipMouse.x = e.clientX; slotTipMouse.y = e.clientY;
-    positionSlotTip();
-  }
-  function positionSlotTip() {
-    const pad = 14, edge = 8;
-    let x = slotTipMouse.x + pad;
-    let y = slotTipMouse.y + pad;
-    const rect = slotTip.getBoundingClientRect();
-    if (x + rect.width > window.innerWidth) x = slotTipMouse.x - rect.width - pad;
-    if (y + rect.height > window.innerHeight) y = slotTipMouse.y - rect.height - pad;
-    x = Math.max(edge, Math.min(x, window.innerWidth - rect.width - edge));
-    y = Math.max(edge, Math.min(y, window.innerHeight - rect.height - edge));
-    slotTip.style.left = x + 'px'; slotTip.style.top = y + 'px';
-  }
-  function hideSlotTip() { slotTip.style.display = 'none'; }
 
   // ---------- PAN / ZOOM ----------
   const VIEWBOX_DEFAULT = { x: 0, y: 0, w: 1200, h: 1200 };
