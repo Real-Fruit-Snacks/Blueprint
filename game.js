@@ -1890,7 +1890,12 @@
           if (isSyntheticMouseFromTouch()) return;
           moveSlotTip(e);
         });
-        slot.addEventListener('mouseleave', hideSlotTip);
+        slot.addEventListener('mouseleave', () => {
+          // Synthetic mouseleave fires right after touchend — skip it so the
+          // long-press tooltip can live out its 2.5s timeout instead of vanishing.
+          if (isSyntheticMouseFromTouch()) return;
+          hideSlotTip();
+        });
 
         // Long-press on touch devices shows the same tooltip. Wired unconditionally —
         // touch events just never fire on mouse-only machines.
