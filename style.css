@@ -3109,6 +3109,10 @@ body:not([data-tab="mastery"]) .patent.affordable { animation: none; }
   }
   .res .v { font-size: 13px; }
   .tabs { order: 1; margin-left: 0; }
+  /* Push settings past the tabs so it ends up on the far right of the row.
+     Without this override, .topbar-settings keeps the default order: 0 and
+     renders between .res-bar and .tabs (fixes itch.io landscape embed). */
+  .topbar-settings { order: 2; margin-left: 0; }
 
   /* Landscape can still afford the sidebar if width is enough */
   .factory-view.active.has-sidebar {
