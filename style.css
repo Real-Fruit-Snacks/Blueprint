@@ -2076,7 +2076,8 @@ body {
   .res .v { font-size: 14px; }
   .res .l { font-size: 8px; }
   .res .rate { font-size: 9px; }
-  .res-auto-btn { width: 20px; height: 20px; top: 2px; right: 2px; }
+  .res-auto-btn { width: 26px; height: 26px; top: 2px; right: 2px; }
+  .res-auto-btn svg { width: 14px; height: 14px; }
 
   /* ----- MAIN AREA ----- */
   .main-area { overflow: hidden; }

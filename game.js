@@ -668,6 +668,7 @@
         tipsMuted: false,
         achievementsExpanded: false,
         autoMine: { ore: true, ingot: false, part: false, circuit: false, core: false, prototype: false },
+        haptics: true,
       },
       meta: {
         schematics: 0,
@@ -1570,6 +1571,7 @@
       state.settings.autoPublish  = state.settings.autoPublish  || { enabled: false, threshold: 10 };
       if (state.settings.tipsMuted == null) state.settings.tipsMuted = false;
       if (state.settings.achievementsExpanded == null) state.settings.achievementsExpanded = false;
+      if (state.settings.haptics == null) state.settings.haptics = true;
       state.settings.autoMine = Object.assign({ ore: true, ingot: false, part: false, circuit: false, core: false, prototype: false }, state.settings.autoMine || {});
       state.meta.achievements = state.meta.achievements || {};
       state.meta.newAchievements = state.meta.newAchievements || {};
@@ -1849,7 +1851,7 @@
           }
           if (count === null) count = buyModeCount(state.settings.buyMode || '1', r);
           const bought = (count === 'max') ? buyMax(id) : buyMultiple(id, count);
-          if (bought > 0) pulse(slot);
+          if (bought > 0) { pulse(slot); haptic(12); }
         });
         slot.addEventListener('contextmenu', (e) => {
           e.preventDefault();
@@ -1912,6 +1914,12 @@
     prevAchSig = ''; // force achievements body to repopulate after rebuildAll
   }
   function pulse(el) { el.classList.remove('pulse'); void el.offsetWidth; el.classList.add('pulse'); }
+  // Haptic feedback — no-op on non-touch devices. Honors state.settings.haptics.
+  function haptic(ms) {
+    if (!navigator.vibrate) return;
+    if (state.settings && state.settings.haptics === false) return;
+    try { navigator.vibrate(ms); } catch (e) { /* ignore */ }
+  }
 
   // ---------- MINE BAR (per-resource manual click buttons) ----------
   const MINE_ICON_KEY = { ore: 'drill', ingot: 'furnace', part: 'press', circuit: 'assembler', core: 'forge', prototype: 'compiler' };
@@ -1959,7 +1967,7 @@
           </div>
         `;
         btn.addEventListener('click', () => {
-          if (clickResource(res)) pulse(btn);
+          if (clickResource(res)) { pulse(btn); haptic(6); }
         });
         dom.mineCard.appendChild(btn);
       }
@@ -2454,15 +2462,25 @@
 
       grp.addEventListener('click', (e) => {
         e.stopPropagation();
+        // Update tooltip anchor from click coords — so taps (no mousemove) still place the tip correctly.
+        if (typeof e.clientX === 'number' && (e.clientX || e.clientY)) {
+          lastTipMouse.x = e.clientX; lastTipMouse.y = e.clientY;
+        } else {
+          // Fallback: anchor to the node itself (center in viewport coords).
+          const r = grp.getBoundingClientRect();
+          lastTipMouse.x = r.left + r.width / 2;
+          lastTipMouse.y = r.top + r.height / 2;
+        }
         // Only arm nodes that could actually be purchased (ignore owned / locked / prereq-missing)
         if (nodeState(id) !== 'available') { disarmNode(); renderTree(); return; }
         if (armedNode === id) {
           // second click → confirm
-          if (researchBuy(id)) pulseNode(grp);
+          if (researchBuy(id)) { pulseNode(grp); haptic(20); }
           disarmNode();
         } else {
           // first click → arm
           armNode(id);
+          haptic(4);
         }
         renderTree();
         renderTooltipFor(id);
@@ -2585,11 +2603,14 @@
   }
   function moveTooltip(e) { lastTipMouse.x = e.clientX; lastTipMouse.y = e.clientY; positionTooltip(); }
   function positionTooltip() {
-    const pad = 16;
+    const pad = 16, edge = 8;
     let x = lastTipMouse.x + pad, y = lastTipMouse.y + pad;
     const rect = treeTip.getBoundingClientRect();
     if (x + rect.width > window.innerWidth) x = lastTipMouse.x - rect.width - pad;
     if (y + rect.height > window.innerHeight) y = lastTipMouse.y - rect.height - pad;
+    // Final clamp: keep tooltip fully on-screen even when both flips overflow (narrow phones).
+    x = Math.max(edge, Math.min(x, window.innerWidth - rect.width - edge));
+    y = Math.max(edge, Math.min(y, window.innerHeight - rect.height - edge));
     treeTip.style.left = x + 'px'; treeTip.style.top = y + 'px';
   }
   function hideTooltip() { treeTip.style.display = 'none'; }
@@ -2654,12 +2675,14 @@
     positionSlotTip();
   }
   function positionSlotTip() {
-    const pad = 14;
+    const pad = 14, edge = 8;
     let x = slotTipMouse.x + pad;
     let y = slotTipMouse.y + pad;
     const rect = slotTip.getBoundingClientRect();
     if (x + rect.width > window.innerWidth) x = slotTipMouse.x - rect.width - pad;
     if (y + rect.height > window.innerHeight) y = slotTipMouse.y - rect.height - pad;
+    x = Math.max(edge, Math.min(x, window.innerWidth - rect.width - edge));
+    y = Math.max(edge, Math.min(y, window.innerHeight - rect.height - edge));
     slotTip.style.left = x + 'px'; slotTip.style.top = y + 'px';
   }
   function hideSlotTip() { slotTip.style.display = 'none'; }
@@ -3116,6 +3139,17 @@
           </div>
         </div>
       </div>
+      ${navigator.vibrate ? `
+      <div class="settings-group">
+        <h4>TOUCH</h4>
+        <div class="settings-row">
+          <span class="label">HAPTIC FEEDBACK</span>
+          <div class="seg">
+            <button id="set-hap-on"  class="${s.haptics !== false ? 'on' : ''}">ON</button>
+            <button id="set-hap-off" class="${s.haptics === false ? 'on' : ''}">OFF</button>
+          </div>
+        </div>
+      </div>` : ''}
       <div class="settings-group">
         <h4>ONBOARDING</h4>
         <div class="settings-row">
@@ -3149,6 +3183,10 @@
     bg.querySelector('#set-mute-on').addEventListener('click',  () => { s.muted = true;  save(); showSettings(); bg.remove(); });
     bg.querySelector('#set-not-si').addEventListener('click',  () => { s.notation = 'si';  save(); showSettings(); bg.remove(); });
     bg.querySelector('#set-not-sci').addEventListener('click', () => { s.notation = 'sci'; save(); showSettings(); bg.remove(); });
+    const hapOn = bg.querySelector('#set-hap-on');
+    const hapOff = bg.querySelector('#set-hap-off');
+    if (hapOn)  hapOn.addEventListener('click',  () => { s.haptics = true;  haptic(20); save(); showSettings(); bg.remove(); });
+    if (hapOff) hapOff.addEventListener('click', () => { s.haptics = false; save(); showSettings(); bg.remove(); });
     bg.querySelector('#set-reset-hints').addEventListener('click', () => {
       s.hintsShown = {};
       toast('<b>Hints cleared.</b> They will appear again as you play.');
