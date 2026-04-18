@@ -1665,20 +1665,38 @@ body {
   opacity: 0.6;
 }
 
-/* connection lines */
+/* connection lines — circuit-trace style (45° diagonal then straight,
+   via dot at the corner, solder pad under each node) */
 .tree-line {
   stroke: var(--line);
   stroke-width: 1;
   fill: none;
+  stroke-linejoin: miter;
+  stroke-linecap: round;
 }
 .tree-line.owned {
   stroke: var(--ok);
-  stroke-width: 1.5;
+  stroke-width: 1.6;
 }
 .tree-line.locked {
   stroke-dasharray: 3 3;
   opacity: 0.5;
 }
+.tree-via {
+  fill: var(--line);
+  stroke: var(--bg-dim);
+  stroke-width: 0.5;
+}
+.tree-via.owned { fill: var(--ok); }
+.tree-via.locked { opacity: 0.5; }
+.tree-pad {
+  fill: var(--line);
+  opacity: 0.18;
+  pointer-events: none;
+}
+.tree-node.owned .tree-pad { fill: var(--ok); opacity: 0.25; }
+.tree-node.available .tree-pad { fill: var(--branch-color); opacity: 0.22; }
+.tree-node.locked .tree-pad { opacity: 0.08; }
 
 /* nodes.
    Each branch carries a different accent color via --branch-color.

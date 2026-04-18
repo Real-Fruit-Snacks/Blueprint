@@ -2562,17 +2562,36 @@
     const g = svgEl('g', { id: 'tree-g' });
     treeSvg.appendChild(g);
 
+    // Circuit-trace routing: 45° diagonal from parent until one axis matches,
+    // then straight to the child. A via dot is dropped at the corner.
     dom.treeLines = [];
+    dom.treeVias = [];
     for (const id in TREE_NODES) {
       const n = TREE_NODES[id];
       const to = treePos(id);
       for (const req of n.requires) {
         const from = treePos(req);
-        const line = svgEl('line', { x1: from.x, y1: from.y, x2: to.x, y2: to.y });
-        line.classList.add('tree-line');
-        line.dataset.from = req; line.dataset.to = id;
-        g.appendChild(line);
-        dom.treeLines.push(line);
+        const dx = to.x - from.x, dy = to.y - from.y;
+        const absDx = Math.abs(dx), absDy = Math.abs(dy);
+        const step = Math.min(absDx, absDy);
+        const sx = Math.sign(dx), sy = Math.sign(dy);
+        const bx = from.x + sx * step;
+        const by = from.y + sy * step;
+        const path = svgEl('path', {
+          d: `M ${from.x} ${from.y} L ${bx} ${by} L ${to.x} ${to.y}`,
+        });
+        path.classList.add('tree-line');
+        path.dataset.from = req; path.dataset.to = id;
+        g.appendChild(path);
+        dom.treeLines.push(path);
+        // Via dot only when there's an actual corner worth marking
+        if (step > 2 && Math.abs(absDx - absDy) > 2) {
+          const via = svgEl('circle', { cx: bx, cy: by, r: 2 });
+          via.classList.add('tree-via');
+          via.dataset.from = req; via.dataset.to = id;
+          g.appendChild(via);
+          dom.treeVias.push(via);
+        }
       }
     }
 
@@ -2586,6 +2605,13 @@
       if (n.branch) grp.classList.add('br-' + n.branch);
       grp.dataset.node = id;
       const radius = id === 'origin' ? 22 : (n.pos.r === 1 ? 16 : 13);
+
+      // Circuit-trace landing pad — dim ring sitting under the node, reads as a solder pad
+      if (id !== 'origin') {
+        const pad = svgEl('circle', { cx: 0, cy: 0, r: radius + 3 });
+        pad.classList.add('tree-pad');
+        grp.appendChild(pad);
+      }
 
       const bg = svgEl('circle', { cx: 0, cy: 0, r: radius });
       bg.classList.add('bg');
@@ -2722,6 +2748,20 @@
       line.classList.toggle('owned', fromOwned && toOwned);
       line.classList.toggle('locked', !fromOwned);
     });
+    // vias — mirror the state of their line
+    if (dom.treeVias) {
+      dom.treeVias.forEach((via) => {
+        const from = via.dataset.from;
+        const to = via.dataset.to;
+        const bothRevealed = nodeRevealed(from) && nodeRevealed(to);
+        via.style.display = bothRevealed ? '' : 'none';
+        if (!bothRevealed) return;
+        const fromOwned = nodeLevel(from) > 0;
+        const toOwned = nodeLevel(to) > 0;
+        via.classList.toggle('owned', fromOwned && toOwned);
+        via.classList.toggle('locked', !fromOwned);
+      });
+    }
   }
 
   // ---------- TOOLTIP ----------
