@@ -3638,7 +3638,11 @@
   function haptic(ms) {
     if (!navigator.vibrate) return;
     if (state.settings && state.settings.haptics === false) return;
-    try { navigator.vibrate(ms); } catch (e) { /* ignore */ }
+    // Android haptic motors have a 10–15 ms startup latency, so anything under
+    // ~20 ms typically fires without being felt. Floor every call at 20 ms so
+    // every haptic event actually actuates the motor.
+    const dur = Array.isArray(ms) ? ms : Math.max(ms | 0, 20);
+    try { navigator.vibrate(dur); } catch (e) { /* ignore */ }
   }
 
   // ---------- MINE BAR (per-resource manual click buttons) ----------
