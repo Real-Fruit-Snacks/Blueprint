@@ -3210,26 +3210,33 @@
     // buy-mode bar state
     if (dom.buyBar) {
       const r = rm();
-      const allow = {
-        '1':    true,
-        '10':   !!r.bulkBuy,
-        '100':  !!r.bulkBuy,
-        '1000': !!r.maxBuy,
-        'max':  !!r.maxBuy,
-      };
-      // if current mode is not allowed, fall back to '1'
-      if (!allow[state.settings.buyMode || '1']) state.settings.buyMode = '1';
-      const current = state.settings.buyMode || '1';
-      dom.buyBar.querySelectorAll('[data-mode]').forEach(btn => {
-        const m = btn.dataset.mode;
-        btn.classList.toggle('locked', !allow[m]);
-        btn.classList.toggle('on', allow[m] && m === current);
-      });
-      const hint = dom.buyBar.querySelector('[data-bm-hint]');
-      if (hint) {
-        if (!r.bulkBuy) hint.textContent = 'Unlock BULK BUY (Automation branch) for ×10 / ×100';
-        else if (!r.maxBuy) hint.textContent = 'Unlock MAX BUY for ×1000 / MAX';
-        else hint.textContent = '';
+      // The bar itself is pointless until Bulk Buy research is owned — hide it entirely
+      // so new players don't see a row of locked buttons they can't interact with.
+      const showBar = !!r.bulkBuy;
+      dom.buyBar.style.display = showBar ? '' : 'none';
+      if (showBar) {
+        const allow = {
+          '1':    true,
+          '10':   !!r.bulkBuy,
+          '100':  !!r.bulkBuy,
+          '1000': !!r.maxBuy,
+          'max':  !!r.maxBuy,
+        };
+        if (!allow[state.settings.buyMode || '1']) state.settings.buyMode = '1';
+        const current = state.settings.buyMode || '1';
+        dom.buyBar.querySelectorAll('[data-mode]').forEach(btn => {
+          const m = btn.dataset.mode;
+          btn.classList.toggle('locked', !allow[m]);
+          btn.classList.toggle('on', allow[m] && m === current);
+        });
+        const hint = dom.buyBar.querySelector('[data-bm-hint]');
+        if (hint) {
+          if (!r.maxBuy) hint.textContent = 'Unlock MAX BUY for ×1000 / MAX';
+          else hint.textContent = '';
+        }
+      } else {
+        // Drop any stale bulk-mode setting so buying still works if the player somehow picked ×10 before.
+        if ((state.settings.buyMode || '1') !== '1') state.settings.buyMode = '1';
       }
     }
 
