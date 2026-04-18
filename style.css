@@ -353,6 +353,39 @@ body {
   gap: 10px;
 }
 
+/* ========== ACCESSIBILITY ========== */
+/* Reduce Motion — neutralise all non-functional animation. Progress bars and
+   essential state transitions stay (users still need to see progress change),
+   but celebrations, particle bursts, screen shake, and pulses go flat. */
+body.reduce-motion .celebrate-flash,
+body.reduce-motion .celebrate-banner {
+  animation: none !important;
+  opacity: 1;
+}
+body.reduce-motion .celebrate-flash { opacity: 0.3; }
+body.reduce-motion .celebrate-banner .cb-main { text-shadow: none; }
+body.reduce-motion .celebrate-particles { display: none !important; }
+body.reduce-motion .screen-shake { animation: none !important; }
+body.reduce-motion .blueprint-chip.rarity-mythic { animation: none !important; box-shadow: none !important; }
+body.reduce-motion .challenge-banner { animation: none !important; }
+body.reduce-motion .challenge-banner .cb-chaos { animation: none !important; }
+body.reduce-motion .onboard-target { animation: none !important; box-shadow: 0 0 0 2px var(--accent) !important; }
+body.reduce-motion .onboard-card { animation: none !important; }
+body.reduce-motion .cp { animation: none !important; opacity: 0 !important; }
+body.reduce-motion .patent.affordable { animation: none !important; }
+body.reduce-motion .rail-node.affordable .rn-circle { animation: none !important; }
+
+/* Colorblind palette — override the six branch hues with a more hue-distinct
+   IBM-safe set (blue · purple · magenta · orange · yellow · teal). Each pair
+   is ≥ 25° hue apart and ≥ 20% brightness apart so deuteranopia, protanopia,
+   and tritanopia can all disambiguate. */
+body.cb-palette .br-speed      { --branch-color: #648fff; } /* blue */
+body.cb-palette .br-logistics  { --branch-color: #fe6100; } /* orange */
+body.cb-palette .br-yield      { --branch-color: #ffb000; } /* amber */
+body.cb-palette .br-automation { --branch-color: #dc267f; } /* magenta */
+body.cb-palette .br-efficiency { --branch-color: #785ef0; } /* purple */
+body.cb-palette .br-power      { --branch-color: #15b2b2; } /* teal */
+
 /* ========== BLUEPRINTS (per-run modifiers) ========== */
 .blueprint-chip {
   display: inline-flex; align-items: center; gap: 6px;

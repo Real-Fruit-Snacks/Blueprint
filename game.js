@@ -1364,6 +1364,11 @@
         achievementsExpanded: false,
         autoMine: { ore: true, ingot: false, part: false, circuit: false, core: false, prototype: false },
         haptics: true,
+        // Accessibility — default to honouring the OS preference; a user toggle
+        // in Settings overrides. `reduceMotion` disables celebrate animations,
+        // particle bursts, screen shake, and the mythic chip pulse.
+        reduceMotion: null,          // null = auto (prefers-reduced-motion), true/false = user choice
+        colorblindMode: false,       // false = default palette, true = IBM cb-safe palette
       },
       meta: {
         schematics: 0,
@@ -1703,6 +1708,27 @@
     if (typeof showToast === 'function') showToast(html, { duration: 6000 });
   }
 
+  // ---------- ACCESSIBILITY ----------
+  // Reduce Motion: tri-state (null = auto via media query, true/false = user override).
+  // Applies a `.reduce-motion` class to <body> so CSS can neutralise animations.
+  // Colorblind mode: body class flip swaps branch hues to a cb-safe palette.
+  function effectiveReduceMotion() {
+    const v = state.settings && state.settings.reduceMotion;
+    if (v === true) return true;
+    if (v === false) return false;
+    // auto — respect OS
+    if (typeof window !== 'undefined' && window.matchMedia) {
+      try { return window.matchMedia('(prefers-reduced-motion: reduce)').matches; }
+      catch { return false; }
+    }
+    return false;
+  }
+  function applyA11yClasses() {
+    if (typeof document === 'undefined') return;
+    document.body.classList.toggle('reduce-motion', effectiveReduceMotion());
+    document.body.classList.toggle('cb-palette', !!(state.settings && state.settings.colorblindMode));
+  }
+
   // ---------- ONBOARDING ----------
   // One-time guided tour for first-time players. Steps auto-advance as the
   // corresponding in-game condition becomes true, so the tutorial never blocks
@@ -1865,6 +1891,7 @@
   function celebrate(kind, opts = {}) {
     kind = kind || 'prestige';
     const colors = CELEBRATE_PALETTE[kind] || CELEBRATE_PALETTE.prestige;
+    const reduced = effectiveReduceMotion();
 
     // Radial flash
     const flash = document.createElement('div');
@@ -1887,9 +1914,10 @@
       setTimeout(() => { if (banner.parentNode) banner.parentNode.removeChild(banner); }, 2300);
     }
 
-    // Particle burst — fewer on mobile to stay smooth
+    // Particle burst — fewer on mobile to stay smooth, zero when reduceMotion.
     const isMobile = window.matchMedia('(max-width: 720px)').matches;
-    const particleCount = opts.particles != null ? opts.particles : (isMobile ? 40 : 80);
+    let particleCount = opts.particles != null ? opts.particles : (isMobile ? 40 : 80);
+    if (reduced) particleCount = 0;
     if (particleCount > 0) {
       const field = document.createElement('div');
       field.className = 'celebrate-particles';
@@ -1914,8 +1942,8 @@
       setTimeout(() => { if (field.parentNode) field.parentNode.removeChild(field); }, 1600);
     }
 
-    // Screen shake on the #app container
-    if (!opts.skipShake) {
+    // Screen shake on the #app container — suppressed when reduceMotion.
+    if (!opts.skipShake && !reduced) {
       const app = document.getElementById('app');
       if (app) {
         app.classList.remove('screen-shake');
@@ -3105,6 +3133,8 @@
       if (state.settings.tipsMuted == null) state.settings.tipsMuted = false;
       if (state.settings.achievementsExpanded == null) state.settings.achievementsExpanded = false;
       if (state.settings.haptics == null) state.settings.haptics = true;
+      if (state.settings.reduceMotion === undefined) state.settings.reduceMotion = null;
+      if (state.settings.colorblindMode == null) state.settings.colorblindMode = false;
       state.settings.autoMine = Object.assign({ ore: true, ingot: false, part: false, circuit: false, core: false, prototype: false }, state.settings.autoMine || {});
       state.meta.achievements = state.meta.achievements || {};
       state.meta.newAchievements = state.meta.newAchievements || {};
@@ -4950,6 +4980,24 @@
           </div>
         </div>
       </div>
+      <div class="settings-group">
+        <h4>ACCESSIBILITY</h4>
+        <div class="settings-row">
+          <span class="label">REDUCE MOTION</span>
+          <div class="seg">
+            <button id="set-rm-auto" class="${s.reduceMotion == null ? 'on' : ''}">AUTO</button>
+            <button id="set-rm-on"   class="${s.reduceMotion === true ? 'on' : ''}">ON</button>
+            <button id="set-rm-off"  class="${s.reduceMotion === false ? 'on' : ''}">OFF</button>
+          </div>
+        </div>
+        <div class="settings-row">
+          <span class="label">COLORBLIND PALETTE</span>
+          <div class="seg">
+            <button id="set-cb-off" class="${!s.colorblindMode ? 'on' : ''}">OFF</button>
+            <button id="set-cb-on"  class="${s.colorblindMode ? 'on' : ''}">ON</button>
+          </div>
+        </div>
+      </div>
       ${navigator.vibrate ? `
       <div class="settings-group">
         <h4>TOUCH</h4>
@@ -5034,6 +5082,12 @@
     bg.querySelector('#set-mute-on').addEventListener('click',  () => { s.muted = true;  save(); showSettings(); bg.remove(); });
     bg.querySelector('#set-not-si').addEventListener('click',  () => { s.notation = 'si';  save(); showSettings(); bg.remove(); });
     bg.querySelector('#set-not-sci').addEventListener('click', () => { s.notation = 'sci'; save(); showSettings(); bg.remove(); });
+    // A11y
+    bg.querySelector('#set-rm-auto').addEventListener('click', () => { s.reduceMotion = null;  applyA11yClasses(); save(); showSettings(); bg.remove(); });
+    bg.querySelector('#set-rm-on').addEventListener('click',   () => { s.reduceMotion = true;  applyA11yClasses(); save(); showSettings(); bg.remove(); });
+    bg.querySelector('#set-rm-off').addEventListener('click',  () => { s.reduceMotion = false; applyA11yClasses(); save(); showSettings(); bg.remove(); });
+    bg.querySelector('#set-cb-off').addEventListener('click',  () => { s.colorblindMode = false; applyA11yClasses(); save(); showSettings(); bg.remove(); });
+    bg.querySelector('#set-cb-on').addEventListener('click',   () => { s.colorblindMode = true;  applyA11yClasses(); save(); showSettings(); bg.remove(); });
     const hapOn = bg.querySelector('#set-hap-on');
     const hapOff = bg.querySelector('#set-hap-off');
     if (hapOn)  hapOn.addEventListener('click',  () => { s.haptics = true;  haptic(20); save(); showSettings(); bg.remove(); });
@@ -5344,6 +5398,16 @@
     sessionStartAt = Date.now();
 
     applyStartupBonuses();
+    applyA11yClasses();
+    // Watch for OS prefers-reduced-motion changes so "auto" mode stays live.
+    if (typeof window !== 'undefined' && window.matchMedia) {
+      try {
+        const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+        const onChange = () => applyA11yClasses();
+        if (mq.addEventListener) mq.addEventListener('change', onChange);
+        else if (mq.addListener) mq.addListener(onChange);
+      } catch {}
+    }
     rebuildAll();
     renderBlueprintChip();
     setTab(state.meta.currentTab === 'tree' && treeTabVisible() ? 'tree' : 'factory');
@@ -5365,6 +5429,17 @@
     // pass is out of the way. Small delay so any achievements awarded during
     // applyOffline's tick-replay are processed without a banner storm.
     setTimeout(() => { runtime.suppressAchievementCelebrate = false; }, 1500);
+
+    // Service worker — enables installable PWA + offline play. Registered
+    // only when running from http(s); file:// and about:blank are skipped so
+    // local-file opens don't spam the console.
+    if ('serviceWorker' in navigator && /^https?:/.test(location.protocol)) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('sw.js').catch((err) => {
+          console.warn('[blueprint] sw registration failed', err);
+        });
+      });
+    }
 
     console.log('[blueprint] v' + VERSION + ' · redesigned prestige tree · loaded=' + loaded);
   }
