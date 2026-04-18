@@ -23,6 +23,14 @@
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
+/* Kill mobile-browser tap-highlight flashes and the default focus ring that
+   Chromium keeps drawn around a button after a touch-tap. :focus-visible
+   keeps the outline for keyboard users — only the mouse/touch path is
+   suppressed. Fixes the stray blue line seen when tapping the top resource
+   pills inside the itch.io fullscreen embed on mobile. */
+html { -webkit-tap-highlight-color: transparent; }
+:focus:not(:focus-visible) { outline: none; }
+
 /* ========== SCROLLBARS (blueprint theme) ========== */
 * {
   scrollbar-width: thin;
