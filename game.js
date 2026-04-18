@@ -2289,7 +2289,15 @@
     if ((lvls.institutional_backing || 0) > 0)    state.research.tiersUnlocked[4] = true;
     if ((lvls.industrial_empire || 0) > 0)        state.research.tiersUnlocked[5] = true;
     if ((lvls.fast_start || 0) > 0) {
-      state.machines.drill = Math.max(state.machines.drill || 0, lvls.fast_start);
+      // TALL caps machine counts at 3. fast_start at level 4 or 5 would seed
+      // the run already over-cap and make TALL literally unwinnable. Clamp the
+      // starting drill grant to the TALL cap - 1 so the player still gets a
+      // head-start but can place additional drills up to the limit.
+      const ch = activeChallenge();
+      const grant = (ch === 'tall')
+        ? Math.min(lvls.fast_start, 2)
+        : lvls.fast_start;
+      if (grant > 0) state.machines.drill = Math.max(state.machines.drill || 0, grant);
     }
     if ((lvls.legacy_wealth || 0) > 0) {
       state.resources.ore = Math.max(state.resources.ore || 0, 10000);
