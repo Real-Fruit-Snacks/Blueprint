@@ -4,6 +4,20 @@ All notable changes to **Blueprint** are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.1] — 2026-04-19
+
+Two bugs reported in itch.io comments. Both player-blocking in different ways.
+
+### Fixed
+
+- **Research tree no longer becomes unbuyable after Publish.** `doPublish()` was wiping `state.research.levels` to `{ origin: 0 }` — but `freshResearch()` gives new games `origin: 1`. After a Publish, every node in the tree said "origin required" with no hint that the player needed to re-click the centre node. Players got stuck with schematics they couldn't spend. Publish now preserves `origin: 1` (Origin has no cost and is just the "enable research" gate, so this matches the new-game baseline rather than adding anything).
+- **Background-tab simulation is now capped at the offline limit.** v0.9.0's sim-worker had no budget — leaving the tab hidden for 24 h ticked 24 h of production, while closing the tab for 24 h capped at 8 h (+ TAILWIND / WIDER NET). A player who left the game open overnight could accumulate more than a player who did everything "right." `runtime.hiddenTickAppliedMs` now tracks accumulated worker-tick time per hidden window and refuses further ticks past `OFFLINE_CAP_MS + patent / legacy bonuses`. `applyOffline` on return receives the remaining budget so the two paths can't stack past the cap. Background and closed-tab rewards are now identical.
+
+### Notes
+
+- The fix to Origin is retroactive: if you published under v0.8.x or v0.9.0 and ended up with `origin: 0`, a load-time migration was already setting it back to 1 (see the migration at `load()`), so you weren't actually stuck — but any new publishes post-v0.9.1 skip the bug entirely.
+- The background cap applies to each hidden window independently. Tab-switch for 2 h, come back, go away for 2 h — that's 4 h of background production total, both within cap.
+
 ## [0.9.0] — 2026-04-19
 
 Background-tab simulation now actually runs, not just catches up on return.

@@ -1,4 +1,4 @@
-/* ========== BLUEPRINT · v0.9.0 · Phase 4+5 (Redesign) ==========
+/* ========== BLUEPRINT · v0.9.1 · Phase 4+5 (Redesign) ==========
    Prestige-driven tree with Schematics currency. Leveled + unlock nodes.
    MK-IV / MK-V machines (10 new). New mechanics: momentum, lossless,
    bulk-buy, auto-buy, auto-click, double-pay.
@@ -12,7 +12,7 @@
   const SAVE_INTERVAL = 5000;
   const OFFLINE_CAP_MS = 8 * 3600 * 1000;
   const OFFLINE_REPORT_MS = 30_000;
-  const VERSION = '0.9.0';
+  const VERSION = '0.9.1';
   const LOG_MAX = 20;
   const MOMENTUM_CAP = 0.5;          // +50% max from momentum
   const LOSSLESS_FLOOR = 0.5;        // bottlenecked production floor
@@ -1840,6 +1840,11 @@
     suppressAchievementCelebrate: true,
     // Per-session gate so the backup-suggested toast fires at most once per load.
     backupNudged: false,
+    // v0.9.1 — worker background-tick budget. Accumulates real-ms applied
+    // from sim-worker ticks while the tab is hidden. Capped at the offline
+    // limit so leaving the tab open hidden for 24 h doesn't earn more than
+    // leaving it closed for 24 h. Reset to 0 on visibility-visible.
+    hiddenTickAppliedMs: 0,
   };
 
   // ---------- AUDIO ----------
@@ -2651,7 +2656,12 @@
     state.resources = emptyResources();
     state.machines = emptyMachines();
     state.supports = emptySupports();
-    state.research.levels = { origin: 0 };
+    // Origin stays at level 1 after Publish — it's the "enable research" gate
+    // and has no cost. Wiping it to 0 (previous behaviour) left every tree
+    // node saying "origin required" with no hint that the player needed to
+    // re-click the centre node. freshResearch() gives new games origin: 1
+    // for the same reason; Publish just re-applies that baseline.
+    state.research.levels = { origin: 1 };
     state.research.tiersUnlocked = { 2: false, 3: false, 4: false, 5: false, 6: false };
     state.meta.schematics = 0;
     state.meta.totalSchematics = 0;
@@ -3807,9 +3817,13 @@
     invalidateRM();
     rebuildAll();
   }
-  function applyOffline() {
+  function applyOffline(maxCatchupMs) {
     const now = Date.now();
-    const capMs = OFFLINE_CAP_MS + (rm().offlineHoursAdd || 0) * 3600 * 1000;
+    // Default cap = offline limit + patent / legacy bonuses. Callers can
+    // pass a tighter cap if they've already applied some ticks (e.g. the
+    // sim-worker consumed part of the background budget already).
+    const defaultCapMs = OFFLINE_CAP_MS + (rm().offlineHoursAdd || 0) * 3600 * 1000;
+    const capMs = Math.min(typeof maxCatchupMs === 'number' ? maxCatchupMs : defaultCapMs, defaultCapMs);
     const elapsed = Math.min(now - state.lastTickAt, capMs);
     let report = null;
     if (elapsed > 1000) {
@@ -6314,9 +6328,16 @@
           // visible, the rAF loop is already running and adding a 1 Hz
           // tick on top would double-count.
           if (document.visibilityState !== 'hidden') return;
+          // Enforce the offline cap in background. Without this, a tab left
+          // hidden for 24 h would earn 24 h of production while a tab
+          // closed for 24 h caps at 8 h (+ patent / legacy bonuses). Match
+          // the two so background and closed-tab reward the same amount.
+          const capMs = OFFLINE_CAP_MS + (rm().offlineHoursAdd || 0) * 3600 * 1000;
+          if (runtime.hiddenTickAppliedMs >= capMs) return;
           const dt = Math.min(Math.max(e.data.dtSec || 0, 0), 5); // clamp 0..5s
           if (dt <= 0) return;
           tick(dt);
+          runtime.hiddenTickAppliedMs += dt * 1000;
           state.lastTickAt = Date.now();
           // Let achievements surface on return rather than mid-hidden to
           // avoid firing banners nobody's watching. checkUnlockChanges()
@@ -6332,21 +6353,33 @@
     window.addEventListener('beforeunload', save);
     window.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'hidden') {
+        // Start a fresh background-tick budget for the upcoming hidden
+        // window. Worker ticks will count against this until it hits the
+        // offline cap, at which point they no-op — keeping background-tab
+        // gains identical to closed-tab gains.
+        runtime.hiddenTickAppliedMs = 0;
         save();
       } else if (document.visibilityState === 'visible') {
-        // Tab came back from background. The hidden-tab check in loop() froze
-        // state.lastTickAt at the last visible frame, so applyOffline() will
-        // tick the full wall-clock gap (capped at OFFLINE_CAP_MS + patent /
-        // legacy bonuses) exactly as if the player had closed the tab and
-        // reopened it. Suppresses the achievement-banner storm during the
-        // catch-up, then re-enables banners after 1.5 s.
+        // Tab came back from background. If the sim-worker was ticking, the
+        // budget already applied up to the offline cap and state.lastTickAt
+        // is recent — applyOffline below sees a tiny dt and no-ops. If the
+        // worker was suspended / blocked, applyOffline picks up the slack
+        // with its own cap (OFFLINE_CAP_MS minus what the worker did
+        // apply, so the two paths can't stack past the cap).
         runtime.suppressAchievementCelebrate = true;
-        const report = applyOffline();
+        const remainingBudgetMs = Math.max(
+          0,
+          (OFFLINE_CAP_MS + (rm().offlineHoursAdd || 0) * 3600 * 1000) - (runtime.hiddenTickAppliedMs || 0)
+        );
+        const report = applyOffline(remainingBudgetMs);
         lastFrameAt = performance.now();
         if (report && report.elapsed >= OFFLINE_REPORT_MS) {
           log(`Welcome back — away ${fmtDuration(report.elapsed)}`);
           setTimeout(() => showWelcomeBack(report), 400);
         }
+        // Reset the budget so rAF-driven visible ticks aren't affected by
+        // the stale counter on the next hidden window.
+        runtime.hiddenTickAppliedMs = 0;
         setTimeout(() => { runtime.suppressAchievementCelebrate = false; }, 1500);
       }
     });
