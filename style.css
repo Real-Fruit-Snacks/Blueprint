@@ -238,6 +238,11 @@ body {
   border-color: var(--ok); font-weight: bold;
 }
 .tab.hidden { display: none; }
+/* Tab label variants: full text shown at desktop widths, short abbreviation
+   swapped in on narrow screens. Defaults to full; mobile portrait media query
+   flips visibility. Keeps the topbar single-row on phones. */
+.tab .tab-full { display: inline; }
+.tab .tab-short { display: none; }
 
 /* ========== MAIN LAYOUT ========== */
 .main-area {
@@ -3040,6 +3045,9 @@ body:not([data-tab="mastery"]) .patent.affordable { animation: none; }
     flex-wrap: wrap;
   }
   .topbar-settings { order: 3; margin-left: auto; }
+  /* Swap to the short tab labels so all six tabs + the gear fit on one row. */
+  .tab .tab-full { display: none; }
+  .tab .tab-short { display: inline; }
   .tab {
     padding: 5px 6px;
     font-size: 9px;
@@ -3283,6 +3291,10 @@ body:not([data-tab="mastery"]) .patent.affordable { animation: none; }
   }
   .res .v { font-size: 13px; }
   .tabs { order: 1; margin-left: 0; }
+  /* Landscape phone is still narrow enough that the full labels overflow the
+     single-row topbar once every tab is unlocked. Use the short variants. */
+  .tab .tab-full { display: none; }
+  .tab .tab-short { display: inline; }
   /* Push settings past the tabs so it ends up on the far right of the row.
      Without this override, .topbar-settings keeps the default order: 0 and
      renders between .res-bar and .tabs (fixes itch.io landscape embed). */
