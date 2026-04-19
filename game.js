@@ -1,4 +1,4 @@
-/* ========== BLUEPRINT · v0.6.3 · Phase 4+5 (Redesign) ==========
+/* ========== BLUEPRINT · v0.7.0 · Phase 4+5 (Redesign) ==========
    Prestige-driven tree with Schematics currency. Leveled + unlock nodes.
    MK-IV / MK-V machines (10 new). New mechanics: momentum, lossless,
    bulk-buy, auto-buy, auto-click, double-pay.
@@ -12,7 +12,7 @@
   const SAVE_INTERVAL = 5000;
   const OFFLINE_CAP_MS = 8 * 3600 * 1000;
   const OFFLINE_REPORT_MS = 30_000;
-  const VERSION = '0.6.3';
+  const VERSION = '0.7.0';
   const LOG_MAX = 20;
   const MOMENTUM_CAP = 0.5;          // +50% max from momentum
   const LOSSLESS_FLOOR = 0.5;        // bottlenecked production floor
@@ -46,12 +46,14 @@
 
   // Tier unlocks: purchased with Schematics. Permanent across prestige.
   // T6 is intentionally steep — gates the meta-prestige loop.
+  // v0.7.0 balance: doubled tier-unlock costs so later tiers require several
+  // more publishes of mature production rather than being available on run 2-3.
   const TIER_UNLOCKS = {
-    2: { cost: 3,    name: 'T2 · SMELTING' },
-    3: { cost: 15,   name: 'T3 · FABRICATION' },
-    4: { cost: 60,   name: 'T4 · ASSEMBLY' },
-    5: { cost: 250,  name: 'T5 · CORE FORGE' },
-    6: { cost: 1200, name: 'T6 · REFINEMENT' },
+    2: { cost: 6,    name: 'T2 · SMELTING' },
+    3: { cost: 30,   name: 'T3 · FABRICATION' },
+    4: { cost: 120,  name: 'T4 · ASSEMBLY' },
+    5: { cost: 500,  name: 'T5 · CORE FORGE' },
+    6: { cost: 2500, name: 'T6 · REFINEMENT' },
   };
 
   // ---------- ICONS ----------
@@ -310,14 +312,14 @@
 
     // ═══════════════════ POWER (0°) ═══════════════════
     mk4:          { type: 'unlock',  name: 'MK-IV MACHINES', desc: 'Unlock the <b>4th machine</b> in each tier (5 new).',
-                    branch: 'power', pos: { angle: 0, r: 1 }, requires: ['origin'], cost: 70,
+                    branch: 'power', pos: { angle: 0, r: 1 }, requires: ['origin'], cost: 120,
                     applyEffect: () => {} },
     overdrive_1:  { type: 'leveled', name: 'OVERDRIVE I', desc: '<b>+20% support effect</b> per level.',
                     branch: 'power', pos: { angle: 0, r: 2 }, requires: ['mk4'],
                     maxLevel: 5, costForLevel: (L) => L * 15,
                     applyEffect: (m, L) => { m.powerBoost *= (1 + 0.20 * L); } },
     mk5:          { type: 'unlock',  name: 'MK-V MACHINES', desc: 'Unlock the <b>5th machine</b> in each tier (5 more).',
-                    branch: 'power', pos: { angle: 0, r: 3 }, requires: ['overdrive_1'], cost: 200,
+                    branch: 'power', pos: { angle: 0, r: 3 }, requires: ['overdrive_1'], cost: 400,
                     applyEffect: () => {} },
     overdrive_2:  { type: 'leveled', name: 'OVERDRIVE II', desc: '<b>+20% support effect</b> per level.',
                     branch: 'power', pos: { angle: 0, r: 4 }, requires: ['mk5'],
@@ -628,6 +630,60 @@
       timerMs: 0,
       applyReward: (m) => { m.clickAdd += 10; },
     },
+    // ---------- v0.7.0 challenges ----------
+    austere: {
+      name: 'AUSTERE',
+      desc: 'All machine costs are doubled. Spend wisely.',
+      constraintLabel: 'COSTS ×2',
+      rewardLabel: '-5% machine cost',
+      goalSchematics: 40,
+      goalLabel: 'Earn 40 schematics with doubled costs',
+      timerMs: 0,
+      applyDuring: (m) => { m.costMul *= 2; },
+      applyReward: (m) => { m.costMul *= 0.95; },
+    },
+    glassware: {
+      name: 'GLASSWARE',
+      desc: 'Every 60 seconds, you lose 50% of your most-held resource. Nothing is safe.',
+      constraintLabel: 'FRAGILE · 60S',
+      rewardLabel: '+10% schematic gain',
+      goalSchematics: 45,
+      goalLabel: 'Earn 45 schematics while fragile',
+      timerMs: 0,
+      applyReward: (m) => { m.schematicMul *= 1.10; },
+    },
+    overclock: {
+      name: 'OVERCLOCK',
+      desc: 'Production ×3 — consumption ×4. Scale upstream tiers or starve downstream.',
+      constraintLabel: 'PROD×3 / CONS×4',
+      rewardLabel: '+10% production, permanent',
+      goalSchematics: 50,
+      goalLabel: 'Earn 50 schematics while overclocked',
+      timerMs: 0,
+      applyDuring: (m) => { m.prodMul *= 3; m.consMul *= 4; },
+      applyReward: (m) => { m.prodMul *= 1.10; },
+    },
+    echo: {
+      name: 'ECHO',
+      desc: 'After buying a machine, that type is locked for 5 seconds. One voice at a time.',
+      constraintLabel: '5S COOLDOWN',
+      rewardLabel: 'Blueprint pool rolls 4 options instead of 3',
+      goalSchematics: 45,
+      goalLabel: 'Earn 45 schematics with machine cooldowns',
+      timerMs: 0,
+      applyReward: (m) => { m.extraBlueprintRoll = true; },
+    },
+    famine: {
+      name: 'FAMINE',
+      desc: 'All production is halved. Earn schematics the hard way.',
+      constraintLabel: 'PROD ÷2',
+      rewardLabel: '+25% schematic gain',
+      goalSchematics: 40,
+      goalLabel: 'Earn 40 schematics through famine',
+      timerMs: 0,
+      applyDuring: (m) => { m.prodMul *= 0.5; },
+      applyReward: (m) => { m.schematicMul *= 1.25; },
+    },
   };
 
   // ---------- BLUEPRINTS (per-run modifiers) ----------
@@ -691,6 +747,37 @@
       minRunMs: 5 * 60 * 1000,
       applyEffect: (m) => { m.prodMul *= 2; },
     },
+    // ---------- v0.7.0 blueprints ----------
+    vanguard: {
+      name: 'VANGUARD', rarity: 'common',
+      desc: 'The first <b>3 machines</b> of every type are <b>free</b>. No other cost change.',
+      applyEffect: (m) => { m.freeFirst3 = true; },
+    },
+    harvest: {
+      name: 'HARVEST', rarity: 'common',
+      desc: 'Start with <b>100 ingots</b>, <b>20 parts</b>, and <b>5 circuits</b>.',
+      applyEffect: (m) => {},
+      applyStartup: (st) => {
+        st.resources.ingot   = Math.max(100, st.resources.ingot   || 0);
+        st.resources.part    = Math.max(20,  st.resources.part    || 0);
+        st.resources.circuit = Math.max(5,   st.resources.circuit || 0);
+      },
+    },
+    parallel: {
+      name: 'PARALLEL', rarity: 'rare',
+      desc: 'Support effects <b>doubled</b>. Support costs <b>×10</b>.',
+      applyEffect: (m) => { m.powerBoost *= 2; m.supportCostMul *= 10; },
+    },
+    critical: {
+      name: 'CRITICAL', rarity: 'rare',
+      desc: 'Click crit chance <b>doubled</b>. Auto-click <b>halved</b>. Reward the hands, punish the idle.',
+      applyEffect: (m) => { m.critChance *= 2; m.autoClickPerSec *= 0.5; },
+    },
+    archivist: {
+      name: 'ARCHIVIST', rarity: 'mythic',
+      desc: 'Research costs <b>halved</b>. All production <b>×0.5</b>.',
+      applyEffect: (m) => { m.researchCostMul = 0.5; m.prodMul *= 0.5; },
+    },
   };
 
   function activeBlueprint() {
@@ -702,13 +789,16 @@
   }
   function rollBlueprintPool() {
     const ids = Object.keys(BLUEPRINTS);
-    // Fisher-Yates to 3
+    // Fisher-Yates shuffle, then take 3 (or 4 if the ECHO challenge reward is
+    // active). extraBlueprintRoll flips in from the completed-challenge layer
+    // of researchMultipliers, so it survives prestige but resets on publish.
     const shuffled = ids.slice();
     for (let i = shuffled.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
     }
-    return shuffled.slice(0, 3);
+    const take = rm().extraBlueprintRoll ? 4 : 3;
+    return shuffled.slice(0, take);
   }
   function selectBlueprint(id) {
     if (!BLUEPRINTS[id]) return false;
@@ -2137,10 +2227,12 @@
   function nodeNextCost(id) {
     const n = TREE_NODES[id];
     if (!n || n.type === 'origin') return 0;
-    if (n.type === 'unlock') return n.cost;
+    // ARCHIVIST blueprint: research costs halved during the run.
+    const mul = rm().researchCostMul || 1;
+    if (n.type === 'unlock') return Math.ceil(n.cost * mul);
     const nextLevel = nodeLevel(id) + 1;
     if (nextLevel > n.maxLevel) return Infinity;
-    return n.costForLevel(nextLevel);
+    return Math.ceil(n.costForLevel(nextLevel) * mul);
   }
   function nodePrereqsMet(id) {
     const n = TREE_NODES[id];
@@ -2388,6 +2480,10 @@
       fusionPath: 0,
       consFree: false,
       luckyFifth: false,
+      // v0.7.0 — blueprint + challenge fields
+      freeFirst3: false,         // VANGUARD blueprint: first 3 of each type free
+      researchCostMul: 1,        // ARCHIVIST blueprint: scales research node cost
+      extraBlueprintRoll: false, // ECHO challenge reward: pool rolls 4 instead of 3
     };
     for (const id in TREE_NODES) {
       const lvl = nodeLevel(id);
@@ -2424,6 +2520,13 @@
     const bpId = activeBlueprint();
     if (bpId && BLUEPRINTS[bpId] && BLUEPRINTS[bpId].applyEffect) {
       BLUEPRINTS[bpId].applyEffect(m);
+    }
+    // active challenge "during" layer — modifiers that bite only while the
+    // challenge is in progress (cost / prod / cons multipliers). Challenge
+    // rewards are applied separately above via the completed layer.
+    const aid = activeChallenge();
+    if (aid && CHALLENGES[aid] && CHALLENGES[aid].applyDuring) {
+      CHALLENGES[aid].applyDuring(m);
     }
     return m;
   }
@@ -2491,15 +2594,30 @@
     if (!machineUnlocked(id)) return false;
     // TALL: hard cap at 3 per machine type. Bulk buys stop early at the cap.
     if (activeChallenge() === 'tall' && (state.machines[id] || 0) >= 3) return false;
-    // LUCKY FIFTH blueprint — the 5th, 10th, 15th… purchase of a machine is free.
+    // ECHO: 5-second per-type cooldown after each purchase.
+    if (activeChallenge() === 'echo') {
+      runtime.echoCooldown = runtime.echoCooldown || {};
+      const until = runtime.echoCooldown[id] || 0;
+      if (Date.now() < until) return false;
+    }
+    const r = rm();
     const nextCount = (state.machines[id] || 0) + 1;
-    const luckyFree = rm().luckyFifth && nextCount % 5 === 0;
+    // Free-purchase paths:
+    //   - LUCKY FIFTH blueprint: every 5th purchase of a type is free.
+    //   - VANGUARD blueprint: the first 3 of every type are free.
+    const luckyFree = r.luckyFifth && nextCount % 5 === 0;
+    const vanguardFree = r.freeFirst3 && nextCount <= 3;
+    const free = luckyFree || vanguardFree;
     const cost = machineCost(id);
-    if (!luckyFree) {
+    if (!free) {
       if (!canAfford(cost)) return false;
       for (const res in cost) state.resources[res] -= cost[res];
     }
     state.machines[id] = nextCount;
+    if (activeChallenge() === 'echo') {
+      runtime.echoCooldown = runtime.echoCooldown || {};
+      runtime.echoCooldown[id] = Date.now() + 5000;
+    }
     return true;
   }
   function buyOne(id) {
@@ -2858,6 +2976,29 @@
       runtime.chaos = null;
     }
 
+    // GLASSWARE challenge — every 60s, halve the most-held resource. First
+    // strike lands 60s after the run starts, not immediately.
+    if (activeChallenge() === 'glassware') {
+      if (!runtime.glassware) runtime.glassware = { nextAt: Date.now() + 60_000 };
+      const g = runtime.glassware;
+      const nowG = Date.now();
+      if (nowG >= g.nextAt) {
+        let bestRes = null, bestAmt = 0;
+        for (const k in state.resources) {
+          const v = state.resources[k] || 0;
+          if (v > bestAmt) { bestAmt = v; bestRes = k; }
+        }
+        if (bestRes && bestAmt > 1) {
+          state.resources[bestRes] = bestAmt * 0.5;
+          toast(`<b>⚠ GLASSWARE</b> — lost 50% of ${bestRes}`, { duration: 2200 });
+          log(`⚠ GLASSWARE · -50% ${bestRes}`);
+        }
+        g.nextAt = nowG + 60_000;
+      }
+    } else if (runtime.glassware) {
+      runtime.glassware = null;
+    }
+
     // HISTORY SAMPLER — record a small snapshot every 15s so the Stats tab can
     // plot curves. Ring-buffered at 240 samples (~1h of wall-clock data).
     const now = Date.now();
@@ -3015,7 +3156,9 @@
       if (r.noCoreScore && res === 'core') continue;
       score += (p[res] || 0) * TIER_SCORE_WEIGHTS[res];
     }
-    const base = Math.floor(Math.cbrt(score * r.doublePay / 150));
+    // v0.7.0 balance: divisor bumped 150 → 250 (~18% fewer schematics per
+    // run at equal production) so each run advances progression less.
+    const base = Math.floor(Math.cbrt(score * r.doublePay / 250));
     let schem = Math.floor(base * r.schematicMul);
     // PRESTIGE STREAK patent: +20% if within 3 min of last prestige
     if (patentLevel('prestige_streak') > 0 && state.meta.lastPrestigeAt) {

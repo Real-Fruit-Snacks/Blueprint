@@ -4,6 +4,33 @@ All notable changes to **Blueprint** are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.0] — 2026-04-19
+
+Phase 1 of the v0.7 / v0.8 content roadmap. Five new challenges, five new blueprints, and a global balance pass that pushes the first publish from ~1 h to ~3 h of focused play. Phase 2 (the Exhibition endgame) ships as v0.8.0 after this one settles.
+
+### Added
+
+- **5 new challenges** (total is now 14):
+  - **AUSTERE** — all machine costs doubled during the run. Reward: −5 % machine cost, permanent.
+  - **GLASSWARE** — every 60 s, you lose 50 % of your most-held resource. Reward: +10 % schematic gain.
+  - **OVERCLOCK** — production ×3, consumption ×4. Scale the upstream tiers or starve downstream. Reward: +10 % production, permanent.
+  - **ECHO** — after buying a machine, that type is locked for 5 s. Reward: the blueprint pool rolls 4 options per prestige instead of 3.
+  - **FAMINE** — all production halved. Reward: +25 % schematic gain.
+- **5 new blueprints** (total is now 15):
+  - **VANGUARD** (common) — first 3 machines of every type are free.
+  - **HARVEST** (common) — start the run with 100 ingots, 20 parts, and 5 circuits.
+  - **PARALLEL** (rare) — support effects doubled, support costs ×10.
+  - **CRITICAL** (rare) — click crit chance doubled, auto-click halved.
+  - **ARCHIVIST** (mythic) — research costs halved, all production ×0.5.
+- **`applyDuring(m)` hook on challenges** — mirrors the blueprint pattern, so time-active challenge modifiers (like AUSTERE's ×2 cost or FAMINE's ×0.5 prod) compose through `researchMultipliers()` without scattering inline checks.
+
+### Balance
+
+- **Tier unlock Schematic costs doubled** across the board (6 / 30 / 120 / 500 / 2500). Each later tier now requires several more publishes of mature production rather than being available on run 2–3.
+- **Schematic divisor 150 → 250** in `schematicsForPrestige`. About 18 % fewer schematics per run at equal production, so progression asks for more runs to unlock everything.
+- **MK-IV research cost 70 → 120** and **MK-V 200 → 400**. Reinforces the v0.6.3 intent that high-tier machines are earned, not auto-unlocked.
+- **No machine costs changed.** v0.6.3's slot 1–3 costMul bump is already biting the right way; this pass lengthens the *schematic* curve, not the per-machine curve.
+
 ## [0.6.3] — 2026-04-18
 
 Vertical progression balance pass. Early feedback was that players could reach the endgame using only the base (slot 1–3) machines in each tier and never need the MK-IV / MK-V variants the research tree gates behind Power. This pass tightens the base-tier scaling wall so those upgrades become the only efficient next step, *without* making them cheaper — runs shouldn't get shorter, they should get steeper.

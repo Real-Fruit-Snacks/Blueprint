@@ -15,7 +15,7 @@
   &nbsp;
   <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-MIT-b0d0e4?style=for-the-badge&labelColor=0d3b4f"></a>
   &nbsp;
-  <a href="CHANGELOG.md"><img alt="Version" src="https://img.shields.io/badge/v0.6.3-78e08f?style=for-the-badge&labelColor=0d3b4f"></a>
+  <a href="CHANGELOG.md"><img alt="Version" src="https://img.shields.io/badge/v0.7.0-78e08f?style=for-the-badge&labelColor=0d3b4f"></a>
   &nbsp;
   <img alt="Zero dependencies" src="https://img.shields.io/badge/zero%20deps-7aa5bf?style=for-the-badge&labelColor=0d3b4f">
 </p>
@@ -55,8 +55,8 @@ No framework, no build step, no external assets. Every machine icon, research no
 - **60+ research nodes** on a radial tree across six discipline branches
 - **Twin prestige layers** — Schematics (per-run) and Patents (meta, survives every reset)
 - **21 patents** in the Mastery library with stacking leveled upgrades
-- **9 challenge modes** with constraint-driven runs and permanent rewards
-- **10 blueprints** — random per-run modifiers rolled after every prestige for run-to-run variance
+- **14 challenge modes** with constraint-driven runs and permanent rewards
+- **15 blueprints** — random per-run modifiers rolled after every prestige for run-to-run variance
 - **59 achievements** with progress bars and stacking passive bonuses
 
 ### Interaction
@@ -143,7 +143,7 @@ Tested on current Chrome, Firefox, Edge, and Safari (desktop + mobile). The game
 
 ## Changelog
 
-See [CHANGELOG.md](CHANGELOG.md) for the full version history. The current release is **v0.6.3**.
+See [CHANGELOG.md](CHANGELOG.md) for the full version history. The current release is **v0.7.0**.
 
 ## License
 
