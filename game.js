@@ -1,4 +1,4 @@
-/* ========== BLUEPRINT · v0.8.1 · Phase 4+5 (Redesign) ==========
+/* ========== BLUEPRINT · v0.8.2 · Phase 4+5 (Redesign) ==========
    Prestige-driven tree with Schematics currency. Leveled + unlock nodes.
    MK-IV / MK-V machines (10 new). New mechanics: momentum, lossless,
    bulk-buy, auto-buy, auto-click, double-pay.
@@ -12,7 +12,7 @@
   const SAVE_INTERVAL = 5000;
   const OFFLINE_CAP_MS = 8 * 3600 * 1000;
   const OFFLINE_REPORT_MS = 30_000;
-  const VERSION = '0.8.1';
+  const VERSION = '0.8.2';
   const LOG_MAX = 20;
   const MOMENTUM_CAP = 0.5;          // +50% max from momentum
   const LOSSLESS_FLOOR = 0.5;        // bottlenecked production floor
@@ -6089,6 +6089,17 @@
   let lastRenderAt = 0;
   const RENDER_INTERVAL_MS = 66; // ~15 FPS UI
   function loop(nowPerf) {
+    // Tab hidden — freeze the simulation entirely. Browsers throttle RAF to
+    // ~1 Hz (or pause it) in background, which combined with the dt clamp
+    // below would leak sim time at 1/15 normal speed. Instead we do nothing
+    // and rely on the visibilitychange handler to run applyOffline() when
+    // the tab comes back, ticking the full wall-clock gap in one catch-up
+    // pass. Keeps lastTickAt frozen at the hide moment for that catch-up.
+    if (document.visibilityState === 'hidden') {
+      lastFrameAt = nowPerf;
+      requestAnimationFrame(loop);
+      return;
+    }
     const dtMs = nowPerf - lastFrameAt;
     lastFrameAt = nowPerf;
     const dt = Math.min(dtMs / 1000, 1/15);
@@ -6291,7 +6302,24 @@
 
     window.addEventListener('beforeunload', save);
     window.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'hidden') save();
+      if (document.visibilityState === 'hidden') {
+        save();
+      } else if (document.visibilityState === 'visible') {
+        // Tab came back from background. The hidden-tab check in loop() froze
+        // state.lastTickAt at the last visible frame, so applyOffline() will
+        // tick the full wall-clock gap (capped at OFFLINE_CAP_MS + patent /
+        // legacy bonuses) exactly as if the player had closed the tab and
+        // reopened it. Suppresses the achievement-banner storm during the
+        // catch-up, then re-enables banners after 1.5 s.
+        runtime.suppressAchievementCelebrate = true;
+        const report = applyOffline();
+        lastFrameAt = performance.now();
+        if (report && report.elapsed >= OFFLINE_REPORT_MS) {
+          log(`Welcome back — away ${fmtDuration(report.elapsed)}`);
+          setTimeout(() => showWelcomeBack(report), 400);
+        }
+        setTimeout(() => { runtime.suppressAchievementCelebrate = false; }, 1500);
+      }
     });
 
     if (offlineReport && offlineReport.elapsed >= OFFLINE_REPORT_MS) {

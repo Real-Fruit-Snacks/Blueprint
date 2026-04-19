@@ -4,6 +4,19 @@ All notable changes to **Blueprint** are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.2] — 2026-04-19
+
+### Changed
+
+- **Background-tab simulation now catches up properly.** Browsers throttle `requestAnimationFrame` to ~1 Hz (or pause it entirely) when a tab is hidden, and the previous loop clamped `dt` at 66 ms — which meant a tab left in the background effectively ran at 1/15 normal speed and leaked sim time. The loop now early-exits when `document.visibilityState === 'hidden'`, freezing `state.lastTickAt` at the last visible frame. On return, the existing `applyOffline()` pass ticks the full wall-clock gap (capped at `OFFLINE_CAP_MS` + TAILWIND / WIDER NET bonuses), so production accumulates exactly as if the tab had been closed and reopened.
+- **Welcome-back modal now fires on long tab-switches**, not just on reload. Any absence ≥ 30 s triggers the familiar `◆ WELCOME BACK · away Xm Ys` report with the earned-resources breakdown. Short tab-aways stay silent.
+- Achievement-banner storm during catch-up is suppressed for 1.5 s after return (same mechanism used at boot) so a long absence doesn't fire fifteen banners at once.
+
+### Notes
+
+- True continuous background simulation requires a Web Worker, which is a v0.9+ refactor. This patch delivers the standard "catch up on return" pattern used by Cookie Clicker and most incremental games.
+- Offline cap still applies. Leaving the tab hidden for 12 h still grants the 8 h cap (or more if the player has purchased TAILWIND patents / WIDER NET legacy).
+
 ## [0.8.1] — 2026-04-19
 
 Pre-v1.0 polish: fill the achievement gaps around the new content and endgame, and add the meta capstone players always ask for.
