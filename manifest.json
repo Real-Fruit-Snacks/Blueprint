@@ -1,7 +1,7 @@
 {
   "name": "Blueprint · An Incremental Factory",
   "short_name": "Blueprint",
-  "description": "Build a factory one machine at a time. Prestige for Schematics. Publish for Patents.",
+  "description": "Build a factory one machine at a time. Prestige for Schematics. Publish for Patents. Exhibit for Legacy Marks.",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",

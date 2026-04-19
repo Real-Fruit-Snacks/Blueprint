@@ -86,10 +86,10 @@
   <g font-family="Consolas, monospace" fill="#fffbea" text-anchor="middle">
     <text x="780" y="250" font-size="88" font-weight="700" letter-spacing="6">BLUEPRINT</text>
     <text x="780" y="300" font-size="22" fill="#b0d0e4" letter-spacing="4">AN  INCREMENTAL  FACTORY</text>
-    <text x="780" y="380" font-size="20" fill="#ffd670" letter-spacing="3">MINE · SMELT · CRAFT · PRESTIGE · PUBLISH</text>
+    <text x="780" y="380" font-size="20" fill="#ffd670" letter-spacing="3">MINE · SMELT · PRESTIGE · PUBLISH · EXHIBIT</text>
   </g>
   <!-- Bottom signature strip — single line, centred on the canvas, no letter-spacing blow-up -->
-  <g font-family="Consolas, monospace" fill="#7aa5bf" font-size="17" letter-spacing="2" text-anchor="middle">
-    <text x="600" y="555">9  CHALLENGE  MODES   ·   10  BLUEPRINTS   ·   47  ACHIEVEMENTS</text>
+  <g font-family="Consolas, monospace" fill="#7aa5bf" font-size="15" letter-spacing="2" text-anchor="middle">
+    <text x="600" y="555">14  CHALLENGES   ·   15  BLUEPRINTS   ·   8  EXHIBITIONS   ·   59  ACHIEVEMENTS</text>
   </g>
 </svg>

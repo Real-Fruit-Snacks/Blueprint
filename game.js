@@ -5352,6 +5352,7 @@
       ? `<div class="mastery-intro">
           <h4>◆ WHAT IS THIS?</h4>
           <div>Your <b>Refinery</b> machines (T6) convert Cores into <b>Prototypes</b> — the perfected final product of your factory. Once you have Prototypes, you can <b>Publish</b> your work as Patents. Publishing <b>wipes everything</b> (resources, machines, Schematics, the research tree, tier unlocks) but Patents and their permanent upgrades persist forever. Every Publish accelerates your next run.</div>
+          <div style="margin-top:8px">Earn <b>30 lifetime Patents</b> to unlock <b>Exhibitions</b> — a third prestige layer that grants <b>Legacy Marks</b>. Legacy Marks buy permanent upgrades in the Archive that survive every reset, including Publish.</div>
          </div>`
       : '';
 
@@ -5456,7 +5457,7 @@
       showModal('◆ CONFIRM PUBLISH',
         `<p>Publish your work for <b style="color:#ffd670">${g} Patent${g !== 1 ? 's' : ''}</b>.</p>
          <p>This will <b style="color:#ff7e5f">wipe</b>: resources, machines, supports, Schematics, research tree, tier unlocks, current prestige progress.</p>
-         <p>Kept: Patents, Patent upgrades, playtime stats, settings.</p>`,
+         <p>Kept: Patents, Patent upgrades, <b>Legacy Marks</b>, <b>Archive upgrades</b>, playtime stats, settings.</p>`,
         { confirmLabel: 'PUBLISH', onConfirm: (bg) => { bg.remove(); doPublish(); } });
     });
     masteryBodyEl.querySelectorAll('[data-patent]').forEach((btn) => {
@@ -6118,10 +6119,22 @@
     if (treePrestigeBtn) treePrestigeBtn.addEventListener('click', () => {
       if (!canPrestige()) return;
       const gain = schematicsForPrestige();
+      // If an exhibition is active, preview the outcome so players don't
+      // accidentally prestige and lose the slot.
+      let exhLine = '';
+      const ex = activeExhibition();
+      if (ex && EXHIBITIONS[ex]) {
+        const outcome = evaluateExhibition();
+        const ok = outcome === 'won';
+        exhLine = `<p style="color:${ok ? '#78e08f' : '#ff7e5f'}">
+          <b>Exhibition:</b> ${EXHIBITIONS[ex].name} — ${ok ? '✓ GOAL MET (+1 Legacy Mark)' : '✗ GOAL NOT MET (slot clears)'}
+        </p>`;
+      }
       showModal('◆ CONFIRM PRESTIGE',
         `<p>Reset this run. You'll earn <b style="color:#ffd670">${gain} Schematics</b>.</p>
+         ${exhLine}
          <p>Wiped: resources, machines, supports, auto-buy toggles.</p>
-         <p>Kept: Schematics, tree levels, prestige count.</p>`,
+         <p>Kept: Schematics, tree levels, prestige count, Legacy Marks, Archive upgrades.</p>`,
         { confirmLabel: 'PRESTIGE', onConfirm: (bg) => { bg.remove(); doPrestige(); } });
     });
   }

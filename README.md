@@ -5,7 +5,7 @@
 <h1 align="center">Blueprint</h1>
 
 <p align="center">
-  <em>An engineering-sheet incremental. Build a factory one machine at a time, prestige for Schematics, publish for Patents.</em>
+  <em>An engineering-sheet incremental. Build a factory one machine at a time, prestige for Schematics, publish for Patents, exhibit for Legacy Marks.</em>
 </p>
 
 <p align="center">
@@ -34,7 +34,7 @@ No framework, no build step, no external assets. Every machine icon, research no
 <td width="50%"><img src="docs/screenshots/2-research.png" alt="Research — radial parallel tracks with tier unlocks and branch nodes"><br><sub><b>Research.</b> Parallel tracks across six branches — Tier Unlocks, Speed, Logistics, Yield, Automation, Efficiency, Power. Each node has 5–10 levels.</sub></td>
 </tr>
 <tr>
-<td width="50%"><img src="docs/screenshots/3-mastery.png" alt="Mastery — publish CTA, challenges grid, patent library"><br><sub><b>Mastery.</b> The meta layer. Publish for Patents, attempt any of nine challenge modes for permanent rewards.</sub></td>
+<td width="50%"><img src="docs/screenshots/3-mastery.png" alt="Mastery — publish CTA, challenges grid, patent library"><br><sub><b>Mastery.</b> The meta layer. Publish for Patents, attempt any of 14 challenge modes for permanent rewards, then unlock Exhibitions at 30 lifetime Patents.</sub></td>
 <td width="50%"><img src="docs/screenshots/4-stats.png" alt="Stats — trend charts for resources, production, and schematics"><br><sub><b>Stats.</b> Live charts of resources, production rate, schematics, and patents on a rolling 1-hour window.</sub></td>
 </tr>
 <tr>
