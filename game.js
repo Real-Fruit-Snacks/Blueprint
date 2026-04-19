@@ -973,6 +973,21 @@
     state.meta.legacyUpgrades[id] = 1;
     invalidateRM();
     audio.research && audio.research();
+    // Archive-complete celebration — fires once when the player owns all 10
+    // Legacy Upgrades. Biggest banner the game ships: this is the endgame
+    // completion moment.
+    const archiveOwned = Object.keys(LEGACY_UPGRADES).every(k => state.meta.legacyUpgrades[k]);
+    if (archiveOwned && !state.meta.archiveCompleteCelebrated) {
+      state.meta.archiveCompleteCelebrated = true;
+      setTimeout(() => {
+        celebrate('publish', {
+          bannerKind: '◆◆◆ ARCHIVE COMPLETE',
+          bannerMain: 'MASTER ENGINEER',
+          bannerSub: `Every Legacy Upgrade acquired · ${Object.keys(LEGACY_UPGRADES).length} / ${Object.keys(LEGACY_UPGRADES).length}`,
+          particles: 200,
+        });
+      }, 250);
+    }
     save();
     return true;
   }
@@ -1719,6 +1734,10 @@
         legacyMarks: 0,
         legacyUpgrades: {},
         exhibitions: { active: null, completed: {}, failed: {}, pool: [] },
+        // One-shot celebrate gates — flipped true after their banner fires so
+        // the endgame discovery moments don't re-trigger on reload.
+        firstLegacyMarkCelebrated: false,
+        archiveCompleteCelebrated: false,
       },
       log: [],
       lastSaveAt: Date.now(),
@@ -2588,6 +2607,19 @@
     }
     const ms = checkMilestones(patentsBefore, patentsAfter, 'patents');
     if (ms) setTimeout(() => celebrate('milestone', ms), 1400);
+    // Endgame unlock — first publish that crosses the 30-lifetime-patent
+    // threshold. Fires a dedicated banner so the player SEES the new tab
+    // appear rather than discovering it silently.
+    if (patentsBefore < 30 && patentsAfter >= 30) {
+      setTimeout(() => {
+        celebrate('publish', {
+          bannerKind: '◆ EXHIBITIONS UNLOCKED',
+          bannerMain: 'THE ARCHIVE',
+          bannerSub: 'A third prestige layer — earn Legacy Marks, buy permanent upgrades',
+          particles: 140,
+        });
+      }, ms ? 2800 : 1400);
+    }
     maybeNudgeBackup();
     save();
     rebuildAll();
@@ -3531,17 +3563,30 @@
       }, ms ? 2800 : 1400);
     }
     // Exhibition resolution toast + celebrate on success. Stagger after any
-    // challenge banner so all three don't collide on a big run.
+    // challenge banner so all three don't collide on a big run. The first
+    // Legacy Mark earned gets a louder banner than subsequent ones so the
+    // player understands they've unlocked a new currency.
     if (exhibitionResolved) {
       const exMeta = EXHIBITIONS[exhibitionResolved.id];
+      const isFirstMark = exhibitionResolved.win && !state.meta.firstLegacyMarkCelebrated;
       setTimeout(() => {
         if (exhibitionResolved.win) {
-          celebrate('publish', {
-            bannerKind: '◆ EXHIBITION',
-            bannerMain: `+1 LEGACY MARK`,
-            bannerSub: exMeta ? exMeta.name : exhibitionResolved.id,
-            particles: 50,
-          });
+          if (isFirstMark) {
+            state.meta.firstLegacyMarkCelebrated = true;
+            celebrate('publish', {
+              bannerKind: '◆ FIRST LEGACY MARK',
+              bannerMain: 'ARCHIVE OPEN',
+              bannerSub: `${exMeta ? exMeta.name : exhibitionResolved.id} · spend in the Exhibitions tab`,
+              particles: 120,
+            });
+          } else {
+            celebrate('publish', {
+              bannerKind: '◆ EXHIBITION',
+              bannerMain: `+1 LEGACY MARK`,
+              bannerSub: exMeta ? exMeta.name : exhibitionResolved.id,
+              particles: 50,
+            });
+          }
         } else {
           toast(`<b>⚠ EXHIBITION LOST</b> — ${exMeta ? exMeta.name : exhibitionResolved.id}. Try again.`, { duration: 4000 });
         }
