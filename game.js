@@ -1,4 +1,4 @@
-/* ========== BLUEPRINT · v0.9.4 · Phase 4+5 (Redesign) ==========
+/* ========== BLUEPRINT · v0.9.5 · Phase 4+5 (Redesign) ==========
    Prestige-driven tree with Schematics currency. Leveled + unlock nodes.
    MK-IV / MK-V machines (10 new). New mechanics: momentum, lossless,
    bulk-buy, auto-buy, auto-click, double-pay.
@@ -9,10 +9,17 @@
 
   // ---------- CONSTANTS ----------
   const SAVE_KEY = 'blueprint.save.v1';
+  // Rolling backup slot. Mirrored from the primary save no more than once
+  // per minute. If the primary save is ever unreadable (partial write /
+  // quota-exceeded corruption / JSON.parse throw) load() falls back here
+  // and the player resumes from a state at most ~60 s older instead of
+  // being reset to a fresh game.
+  const SAVE_BACKUP_KEY = 'blueprint.save.v1.backup';
+  const SAVE_BACKUP_INTERVAL_MS = 60 * 1000;
   const SAVE_INTERVAL = 5000;
   const OFFLINE_CAP_MS = 8 * 3600 * 1000;
   const OFFLINE_REPORT_MS = 30_000;
-  const VERSION = '0.9.4';
+  const VERSION = '0.9.5';
   const LOG_MAX = 20;
   const MOMENTUM_CAP = 0.5;          // +50% max from momentum
   const LOSSLESS_FLOOR = 0.5;        // bottlenecked production floor
@@ -1849,6 +1856,13 @@
     // limit so leaving the tab open hidden for 24 h doesn't earn more than
     // leaving it closed for 24 h. Reset to 0 on visibility-visible.
     hiddenTickAppliedMs: 0,
+    // v0.9.5 — save hardening. lastBackupWriteAt throttles the rolling
+    // backup slot write to once a minute. saveRecoveredFromBackup is set
+    // when load() falls back to the backup slot because the primary save
+    // couldn't be parsed — boot() surfaces a toast once the toast system
+    // is live so the player knows their last ~60 s of work was rolled back.
+    lastBackupWriteAt: 0,
+    saveRecoveredFromBackup: false,
   };
 
   // ---------- AUDIO ----------
@@ -3739,8 +3753,24 @@
   // ---------- SAVE / LOAD ----------
   function save() {
     state.lastSaveAt = Date.now();
-    try { localStorage.setItem(SAVE_KEY, JSON.stringify(state)); }
-    catch (e) { console.error('[blueprint] save failed', e); }
+    let payload;
+    try { payload = JSON.stringify(state); }
+    catch (e) { console.error('[blueprint] save serialize failed', e); return; }
+    try { localStorage.setItem(SAVE_KEY, payload); }
+    catch (e) { console.error('[blueprint] save failed', e); return; }
+    // Mirror the just-written payload to the backup slot at most once a
+    // minute. Rationale: the primary slot takes every autosave (every 5 s,
+    // plus pagehide / visibilitychange). Writing the backup on every save
+    // doubles our localStorage write pressure for no benefit — a 60 s
+    // rollback window is fine for an incremental. If a write fails (quota,
+    // private-browsing eviction), we swallow silently rather than spam the
+    // console: the backup is best-effort and the primary save is the
+    // source of truth.
+    const now = Date.now();
+    if (now - runtime.lastBackupWriteAt >= SAVE_BACKUP_INTERVAL_MS) {
+      try { localStorage.setItem(SAVE_BACKUP_KEY, payload); runtime.lastBackupWriteAt = now; }
+      catch {}
+    }
   }
   // Apply every version-to-version fixup, default-filling, and
   // shape-normalising pass needed to bring a parsed save into sync with the
@@ -3836,14 +3866,34 @@
   }
 
   function load() {
-    const raw = localStorage.getItem(SAVE_KEY);
-    if (!raw) return false;
-    try {
-      const parsed = JSON.parse(raw);
-      state = migrateState(parsed);
-      invalidateRM();
-      return true;
-    } catch (e) { console.error('[blueprint] load failed', e); return false; }
+    // Try the primary slot first, then the rolling backup slot written by
+    // save() every ~60 s. If the primary is unreadable (partial write /
+    // corrupted JSON / quota error during setItem / an older tab's truncated
+    // payload) we recover from backup rather than resetting the player to
+    // freshState(). The toast that tells the player this happened is raised
+    // in boot() once the toast system is live.
+    const slots = [];
+    const primary = localStorage.getItem(SAVE_KEY);
+    const backup  = localStorage.getItem(SAVE_BACKUP_KEY);
+    if (primary) slots.push(['primary', primary]);
+    if (backup)  slots.push(['backup',  backup]);
+    if (slots.length === 0) return false;
+    for (let i = 0; i < slots.length; i++) {
+      const [slot, raw] = slots[i];
+      try {
+        const parsed = JSON.parse(raw);
+        state = migrateState(parsed);
+        invalidateRM();
+        if (slot === 'backup') {
+          console.warn('[blueprint] primary save unreadable, recovered from backup slot');
+          runtime.saveRecoveredFromBackup = true;
+        }
+        return true;
+      } catch (e) {
+        console.error('[blueprint] load from ' + slot + ' slot failed', e);
+      }
+    }
+    return false;
   }
   function exportSave() { return btoa(unescape(encodeURIComponent(JSON.stringify(state)))); }
   function importSave(b64) {
@@ -3857,7 +3907,12 @@
     } catch { return false; }
   }
   function wipe() {
+    // Clear both the primary and the rolling backup slot — otherwise a
+    // wipe would leave the backup around and the next load() would
+    // "recover" the old state the player just asked us to throw away.
     localStorage.removeItem(SAVE_KEY);
+    localStorage.removeItem(SAVE_BACKUP_KEY);
+    runtime.lastBackupWriteAt = 0;
     state = freshState();
     sessionStartAt = Date.now();
     prevUnlockSig = '';
@@ -6398,6 +6453,12 @@
     }
 
     window.addEventListener('beforeunload', save);
+    // `pagehide` is the reliable lifecycle event on mobile — iOS Safari
+    // and Chrome-on-Android frequently fire `pagehide` without ever firing
+    // `beforeunload` (e.g. when the user swipes the app away or the OS
+    // suspends the tab for memory). Listening to both catches every exit
+    // path and closes the worst-case 5-second autosave window down to ~0.
+    window.addEventListener('pagehide', save);
     window.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'hidden') {
         // Start a fresh background-tick budget for the upcoming hidden
@@ -6440,6 +6501,45 @@
     // pass is out of the way. Small delay so any achievements awarded during
     // applyOffline's tick-replay are processed without a banner storm.
     setTimeout(() => { runtime.suppressAchievementCelebrate = false; }, 1500);
+
+    // v0.9.5 — ask the browser to mark our storage as persistent so it
+    // isn't evicted under low-storage pressure. Huge on iOS Safari, which
+    // otherwise evicts localStorage / IndexedDB from sites the user hasn't
+    // visited in ~7 days. Desktop Chrome grants it based on engagement
+    // heuristics (PWA install, bookmark, etc.) without prompting. Best-
+    // effort — if the API is missing or the browser says no, we fall back
+    // to the old behaviour (which was already the only behaviour we had).
+    try {
+      if (navigator && navigator.storage && typeof navigator.storage.persist === 'function') {
+        navigator.storage.persist().then((granted) => {
+          if (!granted) console.log('[blueprint] persistent storage not granted — save may be evicted under pressure');
+        }).catch(() => {});
+      }
+    } catch {}
+
+    // If load() recovered from the backup slot because the primary save
+    // was unreadable, tell the player once the toast system is up. This
+    // also clears the flag so a subsequent tab-switch doesn't re-raise it.
+    if (runtime.saveRecoveredFromBackup) {
+      runtime.saveRecoveredFromBackup = false;
+      setTimeout(() => {
+        toast('<b>Save recovered from backup.</b><br>Your last ~60 seconds of progress may have been rolled back — the primary save slot was unreadable.', { duration: 9000, kind: 'warn' });
+      }, 1200);
+    }
+
+    // First-play heads-up: saves live in this browser's localStorage.
+    // People routinely lose progress by switching between the itch.io
+    // embed and the GitHub Pages build (different origin = different
+    // bucket) or by clearing cookies. This is a one-shot hint — hint()
+    // records the id in state.settings.hintsShown so it never repeats.
+    // Delayed so it appears after the initial paint and doesn't compete
+    // with the onboarding bubble on a truly fresh install.
+    setTimeout(() => {
+      hint('save_location_v095',
+        '<b>Your save lives in this browser.</b><br>' +
+        'Switching browsers, devices, or clearing cookies will wipe progress. ' +
+        'Use <b>Settings → Export</b> to back it up.');
+    }, 3500);
 
     // Service worker — enables installable PWA + offline play. Registered
     // only when running from http(s); file:// and about:blank are skipped so

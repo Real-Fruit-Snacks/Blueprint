@@ -4,6 +4,28 @@ All notable changes to **Blueprint** are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.5] — 2026-04-22
+
+Save-hardening pass aimed at non-exporters. Until this release, the only meaningful defence against save loss was the Settings → Export flow — but a significant fraction of players never touch it. iOS Safari aggressively evicts localStorage from sites the user hasn't visited in ~7 days, `beforeunload` isn't reliable on mobile (it often doesn't fire when the user swipes the app away), and a mid-save crash could leave a partially-written JSON blob that would load as `freshState()`. None of these failure modes required the player to do anything wrong.
+
+### Added
+
+- **Rolling backup slot.** Every primary save also mirrors into `blueprint.save.v1.backup` at most once per minute. `load()` now tries the primary slot first and falls back to the backup if the primary's `JSON.parse` throws — the player resumes from a state at most ~60 s older instead of being reset.
+- **`pagehide` save handler** in addition to the existing `beforeunload`. iOS Safari and Chrome-on-Android frequently fire `pagehide` without ever firing `beforeunload` (tab swiped away, OS suspends for memory); listening to both closes the worst-case 5-second autosave window down to ~0.
+- **`navigator.storage.persist()` request** at boot. Asks the browser to mark the save as persistent so it's not evicted under low-storage pressure. Huge on iOS Safari (overrides the 7-day eviction). Desktop Chrome grants it based on engagement heuristics (PWA install, bookmark) without prompting. Best-effort — if the browser declines or the API is missing, we silently fall back to the old behaviour.
+- **First-play save-location hint** — a one-shot toast explains that saves live in this browser's localStorage and pointing the player at Settings → Export. Recorded in `state.settings.hintsShown` under id `save_location_v095` so it never repeats.
+- **Backup-recovery toast.** If `load()` falls back to the backup slot because the primary was unreadable, the player gets a warning toast telling them the last ~60 s may have rolled back, rather than silently having lost time.
+
+### Fixed
+
+- **`wipe()` now clears both save slots.** Previously it only cleared the primary; the next load would "recover" the backup slot the player had just asked us to throw away. Settings → Reset Save now actually resets save.
+
+### Notes
+
+- No state migration required. The backup slot is populated organically from the next save(); existing players with only a primary save just get the safety net starting from their next autosave tick.
+- These changes are purely defensive — no game mechanic, balance, or UI changes. A save that loaded cleanly in v0.9.4 will load cleanly in v0.9.5 with zero visible difference unless the player is on iOS or has already lost a save to eviction.
+- Future tiers considered but not shipped: IndexedDB mirror (async write path would change `save()` semantics), URL-hash save snapshots (bigger UX change), service-worker save copy (doesn't help on the itch.io embed where SW doesn't register).
+
 ## [0.9.4] — 2026-04-21
 
 Follow-up balance pass on the patent curve. The v0.9.2 `cbrt × 2` tighten dialed in normal-pace runs (100 K protos ≈ 92 patents, full mastery in 8–12 publishes) but it was still unbounded — a player who left the tab running for 24–48 h on a first run could stockpile trillions of prototypes and cash out 10 000 – 100 000+ patents in a single publish, collapsing mastery into one overnight run. Reported by players as still-too-easy late game.
