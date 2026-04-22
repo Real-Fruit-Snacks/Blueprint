@@ -1,4 +1,4 @@
-/* ========== BLUEPRINT · v0.9.5 · Phase 4+5 (Redesign) ==========
+/* ========== BLUEPRINT · v0.9.6 · Phase 4+5 (Redesign) ==========
    Prestige-driven tree with Schematics currency. Leveled + unlock nodes.
    MK-IV / MK-V machines (10 new). New mechanics: momentum, lossless,
    bulk-buy, auto-buy, auto-click, double-pay.
@@ -19,7 +19,7 @@
   const SAVE_INTERVAL = 5000;
   const OFFLINE_CAP_MS = 8 * 3600 * 1000;
   const OFFLINE_REPORT_MS = 30_000;
-  const VERSION = '0.9.5';
+  const VERSION = '0.9.6';
   const LOG_MAX = 20;
   const MOMENTUM_CAP = 0.5;          // +50% max from momentum
   const LOSSLESS_FLOOR = 0.5;        // bottlenecked production floor
@@ -5525,59 +5525,95 @@
   }
 
   // Pinned banner on the factory view while a challenge is running.
+  // v0.9.6: scaffold DOM built once (on challenge start), per-frame render
+  // only mutates the dynamic children via textContent. Previously the entire
+  // banner innerHTML was replaced every ~66 ms (15 Hz), which destroyed and
+  // recreated the ABANDON button on every frame. If the player's cursor was
+  // hovering that button, the browser repeatedly re-evaluated cursor state
+  // and the cursor flashed between hand and arrow. Reported from itch.io
+  // during challenge runs.
   let challengeBannerEl = null;
+  let challengeBannerRefs = null;
   function renderChallengeBanner() {
     const active = activeChallenge();
     if (!active) {
-      if (challengeBannerEl) { challengeBannerEl.remove(); challengeBannerEl = null; }
+      if (challengeBannerEl) {
+        challengeBannerEl.remove();
+        challengeBannerEl = null;
+        challengeBannerRefs = null;
+      }
       return;
     }
     const ch = CHALLENGES[active];
     if (!ch) return;
+    // Build the static scaffold once per challenge session. activeChallenge()
+    // returns null between challenges (abandon / complete both clear it) so
+    // the presence of challengeBannerEl alone is enough to tell "same session".
     if (!challengeBannerEl) {
       challengeBannerEl = document.createElement('div');
       challengeBannerEl.className = 'challenge-banner';
+      challengeBannerEl.innerHTML = `
+        <span class="cb-tag">⚠ CHALLENGE</span>
+        <span class="cb-name"></span>
+        <span class="cb-constraint"></span>
+        <span class="cb-timer" style="display:none"></span>
+        <span class="cb-chaos" style="display:none"></span>
+        <span class="cb-progress"></span>
+        <button class="cb-abandon" data-ch-abandon>ABANDON</button>
+      `;
       document.body.appendChild(challengeBannerEl);
+      challengeBannerRefs = {
+        name:       challengeBannerEl.querySelector('.cb-name'),
+        constraint: challengeBannerEl.querySelector('.cb-constraint'),
+        timer:      challengeBannerEl.querySelector('.cb-timer'),
+        chaos:      challengeBannerEl.querySelector('.cb-chaos'),
+        progress:   challengeBannerEl.querySelector('.cb-progress'),
+        abandon:    challengeBannerEl.querySelector('[data-ch-abandon]'),
+      };
+      challengeBannerRefs.name.textContent = ch.name;
+      challengeBannerRefs.constraint.textContent = ch.constraintLabel;
+      challengeBannerRefs.abandon.onclick = () => {
+        showModal('ABANDON CHALLENGE?',
+          `<p>Quit <b>${ch.name}</b>. Your current run continues, but no reward.</p>`,
+          { confirmLabel: 'ABANDON', onConfirm: (bg) => { bg.remove(); abandonChallenge(); } });
+      };
     }
-    let timerHtml = '';
-    // BLITZ — countdown timer
+    const refs = challengeBannerRefs;
+    // Per-frame dynamic updates only — textContent + class/display toggles,
+    // no DOM replacement. Keeps the ABANDON button's identity stable so
+    // hover / cursor state doesn't flicker.
+    // BLITZ — countdown timer.
     if (ch.timerMs > 0) {
       const elapsed = Date.now() - (state.meta.challenge.startedAt || Date.now());
       const remainMs = Math.max(0, ch.timerMs - elapsed);
       const rm2 = Math.floor(remainMs / 60000);
       const rs = Math.floor((remainMs % 60000) / 1000);
-      timerHtml = `<span class="cb-timer">${rm2}:${rs.toString().padStart(2, '0')}</span>`;
-    }
-    // SLOW BURN — count-up elapsed / minimum
-    else if (ch.minRunMs) {
+      refs.timer.textContent = `${rm2}:${rs.toString().padStart(2, '0')}`;
+      refs.timer.style.display = '';
+      refs.timer.classList.remove('ok');
+    } else if (ch.minRunMs) {
+      // SLOW BURN — count-up elapsed / minimum.
       const runStart = state.meta.currentRunStartAt || Date.now();
       const elapsed = Date.now() - runStart;
       const minS = Math.ceil(ch.minRunMs / 1000);
       const elS = Math.min(minS, Math.floor(elapsed / 1000));
       const fm = (s) => `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, '0')}`;
       const done = elapsed >= ch.minRunMs;
-      timerHtml = `<span class="cb-timer ${done ? 'ok' : ''}">${fm(elS)} / ${fm(minS)}</span>`;
+      refs.timer.textContent = `${fm(elS)} / ${fm(minS)}`;
+      refs.timer.style.display = '';
+      refs.timer.classList.toggle('ok', done);
+    } else {
+      refs.timer.style.display = 'none';
     }
-    // CHAOS — show which tier is currently blacked out (if any)
-    let chaosHtml = '';
+    // CHAOS — show which tier is currently blacked out (if any).
     if (active === 'chaos' && runtime.chaos && runtime.chaos.endAt > Date.now()) {
-      chaosHtml = `<span class="cb-chaos">T${runtime.chaos.tierId} ◌ BLACKOUT</span>`;
+      refs.chaos.textContent = `T${runtime.chaos.tierId} ◌ BLACKOUT`;
+      refs.chaos.style.display = '';
+    } else {
+      refs.chaos.style.display = 'none';
     }
     const sch = schematicsForPrestige();
-    challengeBannerEl.innerHTML = `
-      <span class="cb-tag">⚠ CHALLENGE</span>
-      <span class="cb-name">${ch.name}</span>
-      <span class="cb-constraint">${ch.constraintLabel}</span>
-      ${timerHtml}
-      ${chaosHtml}
-      <span class="cb-progress">${sch} / ${ch.goalSchematics} ◆</span>
-      <button class="cb-abandon" data-ch-abandon>ABANDON</button>
-    `;
-    challengeBannerEl.querySelector('[data-ch-abandon]').onclick = () => {
-      showModal('ABANDON CHALLENGE?',
-        `<p>Quit <b>${ch.name}</b>. Your current run continues, but no reward.</p>`,
-        { confirmLabel: 'ABANDON', onConfirm: (bg) => { bg.remove(); abandonChallenge(); } });
-    };
+    refs.progress.textContent = `${sch} / ${ch.goalSchematics} ◆`;
   }
 
   function renderMastery() {

@@ -4,6 +4,20 @@ All notable changes to **Blueprint** are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.6] — 2026-04-22
+
+Cursor-flicker bugfix during active challenges. Reported on itch.io by a player who noticed the cursor rapidly flashing between hand and arrow states while running challenge after challenge.
+
+### Fixed
+
+- **Challenge banner no longer rebuilds its DOM 15 times per second.** `renderChallengeBanner()` was doing a full `innerHTML = ...` replacement on every render-loop tick (~66 ms), which destroyed and recreated the embedded `ABANDON` button on every frame. If the player's cursor was hovering that button, the browser re-evaluated cursor state every 66 ms and flashed between pointer (button exists) and default (button briefly absent during the swap). The fix: build the scaffold (tag, name, constraint, timer slot, chaos slot, progress slot, abandon button) exactly once when the challenge starts, and on subsequent renders mutate only the dynamic children via `textContent` and `style.display` toggles. Same information shown at the same refresh rate, but the button's DOM identity is stable so the cursor no longer flickers.
+
+### Notes
+
+- No save migration, no balance changes, no content changes. Purely a rendering regression dating back to v0.6.0 when the challenge banner was introduced.
+- Similar `innerHTML = ...` patterns in `renderMastery()` (500 ms throttle) and `renderExhibitions()` (render-on-action only) were audited and deemed fine: mastery's 2 Hz cadence produces a far less visible flicker (most people perceive 2 Hz as "that thing is updating" rather than "something is wrong"), and exhibitions doesn't render on a timer at all.
+- The challenge banner was the acute case because it was the fastest per-frame rebuild in the game and contained the only persistently-visible interactive button during a run.
+
 ## [0.9.5] — 2026-04-22
 
 Save-hardening pass aimed at non-exporters. Until this release, the only meaningful defence against save loss was the Settings → Export flow — but a significant fraction of players never touch it. iOS Safari aggressively evicts localStorage from sites the user hasn't visited in ~7 days, `beforeunload` isn't reliable on mobile (it often doesn't fire when the user swipes the app away), and a mid-save crash could leave a partially-written JSON blob that would load as `freshState()`. None of these failure modes required the player to do anything wrong.
