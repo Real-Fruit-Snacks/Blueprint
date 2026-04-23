@@ -554,6 +554,15 @@ body.cb-palette .br-power      { --branch-color: #15b2b2; } /* teal */
   color: var(--accent);
   font-family: var(--font-mono);
 }
+/* v0.9.7 — scaled-goal callout. Shows "(now N)" next to the original goal
+   text when the player's lifetime patents have bumped the effective goal
+   above the baseline. White + bold so it pops against the surrounding
+   gold goal line. */
+.challenge-card .ch-goal-scaled {
+  color: var(--white);
+  font-weight: 700;
+  margin-left: 4px;
+}
 .challenge-card .ch-reward {
   font-size: 10px; color: var(--ok);
   font-family: var(--font-mono);

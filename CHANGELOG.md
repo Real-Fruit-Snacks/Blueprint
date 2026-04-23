@@ -4,6 +4,32 @@ All notable changes to **Blueprint** are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.7] — 2026-04-23
+
+Two changes from itch.io player feedback (Ravery): a quality-of-life gap with support buying, and the long-standing problem that challenges become trivial late in a playthrough.
+
+### Added
+
+- **Bulk-buy for support buildings.** Power Node and Boost Relay now honour the BUY MODE bar (×1 / ×10 / ×100 / ×1000 / MAX) the same way machine slots do. Previously the buy mode was machines-only and supports always bought one at a time, which was annoying late game when each multiplier costs Cores in the millions and you wanted to add 50 of them in one go. Refactored into `buySupportInner` / `buySupport` / `buySupportMultiple` / `buySupportMax` to mirror the machine-buy structure; PURIST challenge still blocks all four paths with the same toast.
+
+### Balance
+
+- **Challenge schematic goals now scale with lifetime patents.** Player feedback was that once you've stacked FAST_START patent levels, DRAFTING HEIRLOOM legacy, and the right blueprints, challenge goals (25 to 50 schematics) get hit in seconds because you start the run with most of the ramp-up already done. Goals now scale by `1 + sqrt(totalPatents) * 0.2`:
+  - 0 lifetime patents: 1.0× baseline (unchanged)
+  - 25 patents: 2.0×
+  - 100 patents: 3.0×
+  - 400 patents: 5.0×
+  - 900 patents: 7.0×
+
+  So the SLOW BURN challenge (25 schematics base) becomes 50 at 25 patents, 75 at 100, 175 at 900. The challenge banner, mastery cards, and start modal all now show both the base goal in the description and the scaled goal in parentheses (e.g. "Earn 25 schematics in 5 minutes (now 50)") so there's no surprise when you start.
+
+### Notes
+
+- No save migration. Goal scaling reads from `state.meta.totalPatents` which already exists. Players with 0 patents see no change. Players with high patent counts see the scaled goals immediately on next launch.
+- Already-completed challenges stay completed; they don't have to be re-won at the new scaling.
+- The scaling curve was tuned so that even at 900 patents (full mastery), challenges are still achievable in a normal-paced run — they're not meant to be impossible, just not over the moment they begin.
+- The bigger design questions raised in the same comment (early-game pacing feeling slow, late-game decisions feeling like "click upgrades quickly") are noted but deserve a thought-out v1.0 balance pass rather than a quick patch.
+
 ## [0.9.6] — 2026-04-22
 
 Cursor-flicker bugfix during active challenges. Reported on itch.io by a player who noticed the cursor rapidly flashing between hand and arrow states while running challenge after challenge.

@@ -1,4 +1,4 @@
-/* ========== BLUEPRINT · v0.9.6 · Phase 4+5 (Redesign) ==========
+/* ========== BLUEPRINT · v0.9.7 · Phase 4+5 (Redesign) ==========
    Prestige-driven tree with Schematics currency. Leveled + unlock nodes.
    MK-IV / MK-V machines (10 new). New mechanics: momentum, lossless,
    bulk-buy, auto-buy, auto-click, double-pay.
@@ -19,7 +19,7 @@
   const SAVE_INTERVAL = 5000;
   const OFFLINE_CAP_MS = 8 * 3600 * 1000;
   const OFFLINE_REPORT_MS = 30_000;
-  const VERSION = '0.9.6';
+  const VERSION = '0.9.7';
   const LOG_MAX = 20;
   const MOMENTUM_CAP = 0.5;          // +50% max from momentum
   const LOSSLESS_FLOOR = 0.5;        // bottlenecked production floor
@@ -1123,11 +1123,26 @@
     // they understand the meta-loop before being asked to restrict it.
     return (state.meta.publishCount || 0) >= 1;
   }
+  // v0.9.7 — challenge goals scale with lifetime patents so they don't go
+  // trivial once you've stacked FAST_START / DRAFTING_HEIRLOOM / blueprints.
+  // Formula: 1 + sqrt(totalPatents) * 0.2. 0 patents = 1.0x baseline.
+  // 25 patents = 2.0x. 100 patents = 3.0x. 400 patents = 5.0x. 900 = 7.0x.
+  // Player feedback was that a goal of 30 schematics complete in seconds
+  // once you start with 5 free drills + tier inheritance; this keeps the
+  // ramp-up feeling like a challenge as the player accumulates power.
+  function effectiveChallengeGoal(idOrCh) {
+    const ch = typeof idOrCh === 'string' ? CHALLENGES[idOrCh] : idOrCh;
+    if (!ch) return 0;
+    const base = ch.goalSchematics || 0;
+    const patents = state.meta.totalPatents || 0;
+    const scale = 1 + Math.sqrt(patents) * 0.2;
+    return Math.ceil(base * scale);
+  }
   function evaluateChallenge(id) {
     const ch = CHALLENGES[id];
     if (!ch) return false;
     const sch = schematicsForPrestige();
-    if (sch < ch.goalSchematics) return false;
+    if (sch < effectiveChallengeGoal(ch)) return false;
     if (id === 'pacifist')  return (state.meta.totalClicks || 0) === 0;
     if (id === 'blackout')  return !state.meta.currentRunResearchBought;
     if (id === 'tall') {
@@ -3067,6 +3082,16 @@
     if (mode === 'max'  && r.maxBuy)  return 'max';
     return 1;
   }
+  // Internal single-support purchase. No sound, no toast, no challenge gate.
+  // Used by the bulk paths so they only play one sound for the whole batch
+  // and only show the PURIST toast once when blocked.
+  function buySupportInner(id) {
+    const cost = supportCost(id);
+    if (!canAfford(cost)) return false;
+    for (const res in cost) state.resources[res] -= cost[res];
+    state.supports[id] = (state.supports[id] || 0) + 1;
+    return true;
+  }
   function buySupport(id) {
     // PURIST challenge — supports are locked this run.
     if (activeChallenge() === 'purist') {
@@ -3074,12 +3099,38 @@
       audio.error();
       return false;
     }
-    const cost = supportCost(id);
-    if (!canAfford(cost)) return false;
-    for (const res in cost) state.resources[res] -= cost[res];
-    state.supports[id] = (state.supports[id] || 0) + 1;
-    audio.buyHeavy();
-    return true;
+    const ok = buySupportInner(id);
+    if (ok) audio.buyHeavy();
+    return ok;
+  }
+  function buySupportMultiple(id, count) {
+    if (activeChallenge() === 'purist') {
+      toast('<b>PURIST</b> — no supports this run.', { duration: 2500 });
+      audio.error();
+      return 0;
+    }
+    let bought = 0;
+    for (let i = 0; i < count; i++) {
+      if (!buySupportInner(id)) break;
+      bought++;
+    }
+    if (bought > 0) (bought >= 5 ? audio.buyMax : audio.buyHeavy)();
+    return bought;
+  }
+  function buySupportMax(id) {
+    if (activeChallenge() === 'purist') {
+      toast('<b>PURIST</b> — no supports this run.', { duration: 2500 });
+      audio.error();
+      return 0;
+    }
+    let bought = 0;
+    // Same 10000 sanity cap as buyMax for machines.
+    while (bought < 10000 && canAfford(supportCost(id))) {
+      if (!buySupportInner(id)) break;
+      bought++;
+    }
+    if (bought > 0) (bought >= 5 ? audio.buyMax : audio.buyHeavy)();
+    return bought;
   }
 
   // ---------- TICK ----------
@@ -4579,7 +4630,19 @@
         <div class="s-count" data-count>×0</div>
         <div class="s-cost" data-cost></div>
       `;
-      btn.addEventListener('click', () => { if (buySupport(id)) pulse(btn); });
+      btn.addEventListener('click', () => {
+        // v0.9.7 — supports honour the BUY MODE bar (×1 / ×10 / ×100 / ×1000 / MAX)
+        // the same way machine slots do. Player request: it's annoying to
+        // click Power Node 30 times in a row late game.
+        const r = rm();
+        const mode = state.settings.buyMode || '1';
+        const count = buyModeCount(mode, r);
+        let bought;
+        if (count === 'max')      bought = buySupportMax(id);
+        else if (count > 1)       bought = buySupportMultiple(id, count);
+        else                      bought = buySupport(id) ? 1 : 0;
+        if (bought > 0) pulse(btn);
+      });
       dom.side.supportGrid.appendChild(btn);
     }
 
@@ -5499,6 +5562,14 @@
       let status = 'AVAILABLE';
       if (isActive) status = 'ACTIVE';
       else if (isDone) status = 'COMPLETED';
+      // Show the scaled goal alongside the original label whenever the
+      // player's accumulated patents have moved the needle. Prevents
+      // surprises like "I started CONSTRAINED expecting to need 25
+      // schematics, but it actually needs 50."
+      const scaled = effectiveChallengeGoal(ch);
+      const goalLine = scaled !== ch.goalSchematics
+        ? `${ch.goalLabel} <span class="ch-goal-scaled">(now ${scaled})</span>`
+        : ch.goalLabel;
       return `
         <div class="challenge-card ${status.toLowerCase()}" data-ch="${id}">
           <div class="ch-head">
@@ -5506,7 +5577,7 @@
             <div class="ch-status ${status.toLowerCase()}">${status}</div>
           </div>
           <div class="ch-desc">${ch.desc}</div>
-          <div class="ch-goal">${ch.goalLabel}</div>
+          <div class="ch-goal">${goalLine}</div>
           <div class="ch-reward"><span class="ch-reward-label">REWARD</span> ${ch.rewardLabel}</div>
           <div class="ch-actions">
             ${isActive ? '<button class="ch-btn abandon" data-ch-abandon>ABANDON</button>'
@@ -5613,7 +5684,7 @@
       refs.chaos.style.display = 'none';
     }
     const sch = schematicsForPrestige();
-    refs.progress.textContent = `${sch} / ${ch.goalSchematics} ◆`;
+    refs.progress.textContent = `${sch} / ${effectiveChallengeGoal(active)} ◆`;
   }
 
   function renderMastery() {
@@ -5747,8 +5818,12 @@
       const id = btn.dataset.chStart;
       btn.addEventListener('click', () => {
         const ch = CHALLENGES[id];
+        const scaled = effectiveChallengeGoal(ch);
+        const scaledLine = scaled !== ch.goalSchematics
+          ? `<p><b>Scaled goal:</b> ${scaled} schematics — challenge goals scale with your lifetime patents so they don't go trivial late.</p>`
+          : '';
         showModal(`START · ${ch.name}`,
-          `<p>${ch.desc}</p><p><b>Goal:</b> ${ch.goalLabel}</p><p><b>Reward:</b> ${ch.rewardLabel}</p>
+          `<p>${ch.desc}</p><p><b>Goal:</b> ${ch.goalLabel}</p>${scaledLine}<p><b>Reward:</b> ${ch.rewardLabel}</p>
            <p style="color:var(--warn)">This will end your current run and start a fresh one with the constraint active.</p>`,
           { confirmLabel: 'START', onConfirm: (bg) => { bg.remove(); startChallenge(id); } });
       });
