@@ -546,6 +546,20 @@ body.cb-palette .br-power      { --branch-color: #15b2b2; } /* teal */
 }
 .challenge-card .ch-status.active    { color: var(--warn); }
 .challenge-card .ch-status.completed { color: var(--ok); }
+/* v0.9.8 — locked challenge cards. Early-game players see the full grid
+   with publish-gated challenges rendered dim + dashed so they know what's
+   coming. The UNLOCKS AFTER FIRST PUBLISH chip replaces the start button. */
+.challenge-card.locked {
+  border-style: dashed;
+  opacity: 0.55;
+}
+.challenge-card.locked .ch-name { color: var(--text-dim); }
+.challenge-card .ch-status.locked { color: var(--text-dim); }
+.challenge-card .ch-lock-tag {
+  font-size: 9px; letter-spacing: 1.5px;
+  color: var(--text-dim); font-weight: 700;
+  font-family: var(--font-mono);
+}
 .challenge-card .ch-desc {
   font-size: 11px; color: var(--text); line-height: 1.5;
 }
@@ -2791,6 +2805,15 @@ body:has(.challenge-banner) #app {
   border-color: transparent;
   background: transparent;
 }
+/* v0.9.8 — fully-unrevealed nodes (prereqs not even half-met) render a
+   tick more faintly than "almost unlockable" locked nodes, so the player
+   can visually distinguish "this one is close" from "this one is a long
+   way off". Previously these nodes were hidden entirely (visibility:
+   hidden); now they sit in place as a faint ghost of what's to come. */
+.rail-node.unrevealed .rn-circle { opacity: 0.22; }
+.rail-node.unrevealed .rn-glyph  { opacity: 0.3; }
+.rail-node.unrevealed .rn-name   { opacity: 0.22; }
+.rail-node.unrevealed .rn-cost   { opacity: 0.22; }
 
 /* Affordable — static drop-shadow glow (blur radius does NOT animate — same
    lesson as before: animating blur chokes the GPU on mobile). */

@@ -4,6 +4,22 @@ All notable changes to **Blueprint** are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.8] — 2026-04-23
+
+New-player experience pass. The v0.9.7 notes closed with "early-game pacing and late-game decisions are v1.0 material" — this release walks back the first half of that by shipping three pre-publish quality-of-life improvements that land safely without a full balance overhaul.
+
+### Added
+
+- **Three early-available challenges.** PACIFIST, TALL, and SLOW BURN now unlock after 2 lifetime prestiges instead of after first publish. `earlyAvailable: true` flag on each of the three; gated through a new per-challenge `challengeAvailable(id)` helper. The other 11 challenges stay publish-gated because most of them reference patent-era systems (IRONMAN suppresses heirlooms, etc.) that don't make sense pre-publish. The challenge grid now renders all 14 cards regardless of progression — the locked ones show an `UNLOCKS AFTER FIRST PUBLISH` chip in place of the start button so players can see what's coming.
+- **Locked research nodes are now visible, not hidden.** Previously any node whose prerequisites weren't ≥50% met was set to `visibility: hidden` entirely — so a first-hour player saw a nearly-empty research tree and had no idea how much structure was behind it. Those nodes now render in place at ~22% opacity (dashed outline, dimmed cost text) so the whole horizon is visible from the start. Distinguishes visually from "locked but close" nodes (which stay at 45% opacity) so the player can tell "this one's just a schematic away" from "this one's a long way off."
+- **First-run welcome schematic.** New games start with 1 Schematic in `state.meta.schematics` so the Research tab is immediately interactable. Enough to buy the first level of a leveled node (speed_1, yield_1, etc.), giving new players an actual decision in the first five minutes instead of waiting out a full first prestige. A migration line grants the same schematic retroactively to any existing save that hasn't yet prestiged / published / earned a schematic — no other existing player is touched.
+
+### Notes
+
+- No balance or content changes beyond exposing 3 existing challenges and 1 free schematic earlier. Existing players with prestiges under their belt see the same game, just with locked research nodes now rendering as ghosts instead of gaps. Post-publish players see identical challenge availability as before.
+- `startChallenge()` now also gates on the per-challenge availability, so there's no way to start a publish-gated challenge through a UI bypass even if someone manually triggered the button.
+- The bigger design questions from Ravery's comment (ascensions becoming trivial after enough play, Exhibitions feeling like "click upgrades quickly") still need a thought-out balance pass and aren't addressed here. Those are v1.0 material.
+
 ## [0.9.7] — 2026-04-23
 
 Two changes from itch.io player feedback (Ravery): a quality-of-life gap with support buying, and the long-standing problem that challenges become trivial late in a playthrough.

@@ -1,4 +1,4 @@
-/* ========== BLUEPRINT · v0.9.7 · Phase 4+5 (Redesign) ==========
+/* ========== BLUEPRINT · v0.9.8 · Phase 4+5 (Redesign) ==========
    Prestige-driven tree with Schematics currency. Leveled + unlock nodes.
    MK-IV / MK-V machines (10 new). New mechanics: momentum, lossless,
    bulk-buy, auto-buy, auto-click, double-pay.
@@ -19,7 +19,7 @@
   const SAVE_INTERVAL = 5000;
   const OFFLINE_CAP_MS = 8 * 3600 * 1000;
   const OFFLINE_REPORT_MS = 30_000;
-  const VERSION = '0.9.7';
+  const VERSION = '0.9.8';
   const LOG_MAX = 20;
   const MOMENTUM_CAP = 0.5;          // +50% max from momentum
   const LOSSLESS_FLOOR = 0.5;        // bottlenecked production floor
@@ -559,6 +559,9 @@
       goalLabel: 'Earn 30 schematics without a click',
       timerMs: 0,
       applyReward: (m) => { m.autoClickPerSec += 1; },
+      // v0.9.8 — Early-available so pre-publish players have something to
+      // attempt. No patent-system dependency; teaches automation.
+      earlyAvailable: true,
     },
     blitz: {
       name: 'BLITZ',
@@ -589,6 +592,9 @@
       goalLabel: 'Earn 45 schematics with ≤ 3 per machine',
       timerMs: 0,
       applyReward: (m) => { m.symbiosis += 0.02; },
+      // v0.9.8 — Early-available. Self-contained constraint; teaches
+      // diversification across machine types.
+      earlyAvailable: true,
     },
     monoculture: {
       name: 'MONOCULTURE',
@@ -630,6 +636,9 @@
       timerMs: 0,
       minRunMs: 10 * 60 * 1000,
       applyReward: (m) => { m.offlineHoursAdd += 2; },
+      // v0.9.8 — Early-available. Teaches patience and that long runs
+      // produce more; good early lesson before players discover publish.
+      earlyAvailable: true,
     },
     chaos: {
       name: 'CHAOS',
@@ -1119,9 +1128,25 @@
     return (c && c.active) || null;
   }
   function challengeUnlocked() {
-    // Available only after the player has completed at least one Publish so
-    // they understand the meta-loop before being asked to restrict it.
-    return (state.meta.publishCount || 0) >= 1;
+    // v0.9.8 — section becomes visible after 2 lifetime prestiges OR after
+    // first publish. The prestige gate lets pre-publish players see the
+    // three "early-available" challenges (PACIFIST / TALL / SLOW BURN)
+    // instead of nothing. Other challenges stay publish-gated via
+    // challengeAvailable(id) — they'll appear but as LOCKED cards until
+    // the player publishes for the first time.
+    return (state.meta.publishCount || 0) >= 1
+        || (state.meta.lifetimePrestiges || 0) >= 2;
+  }
+  function challengeAvailable(id) {
+    // Per-challenge availability. Early-available challenges unlock after
+    // 2 prestiges. Every other challenge needs a publish first — most
+    // reference patent-era systems (heirloom suppression, support bans,
+    // etc.) that don't make sense without a meta-layer to suppress.
+    const ch = CHALLENGES[id];
+    if (!ch) return false;
+    if ((state.meta.publishCount || 0) >= 1) return true;
+    if (ch.earlyAvailable && (state.meta.lifetimePrestiges || 0) >= 2) return true;
+    return false;
   }
   // v0.9.7 — challenge goals scale with lifetime patents so they don't go
   // trivial once you've stacked FAST_START / DRAFTING_HEIRLOOM / blueprints.
@@ -1177,7 +1202,11 @@
   function startChallenge(id) {
     if (!CHALLENGES[id]) return false;
     if (activeChallenge()) return false;
-    if (!challengeUnlocked()) return false;
+    // v0.9.8 — per-challenge gate. Previously gated on challengeUnlocked()
+    // (the whole section); now each challenge has its own availability so
+    // pre-publish players can start early challenges while publish-gated
+    // ones stay locked.
+    if (!challengeAvailable(id)) return false;
     // Credit pending schematics if any (mirrors a normal prestige payout) BEFORE
     // the reset, so players don't lose progress by starting a challenge early.
     if (canPrestige()) {
@@ -1785,7 +1814,11 @@
         colorblindMode: false,       // false = default palette, true = IBM cb-safe palette
       },
       meta: {
-        schematics: 0,
+        // v0.9.8 — first-run welcome schematic so the research tree is
+        // immediately interactable instead of needing a full prestige to
+        // open. Migration code preserves existing players at their
+        // current count; this default only affects brand-new games.
+        schematics: 1,
         totalSchematics: 0,
         prestigeCount: 0,
         firstPlay: Date.now(),
@@ -3906,6 +3939,17 @@
     if (s.meta.firstLegacyMarkCelebrated == null) s.meta.firstLegacyMarkCelebrated = false;
     if (s.meta.archiveCompleteCelebrated == null) s.meta.archiveCompleteCelebrated = false;
     s.meta = Object.assign(freshState().meta, s.meta || {});
+    // v0.9.8 — retroactive welcome schematic for players who loaded an
+    // older save but have never prestiged / published / earned a schematic.
+    // Gives them the same "research tree is usable immediately" experience
+    // that brand-new games get. Doesn't touch anyone who has ever earned a
+    // schematic — all four conditions must be true for the grant to apply.
+    if ((s.meta.lifetimePrestiges || 0) === 0
+        && (s.meta.publishCount || 0) === 0
+        && (s.meta.totalSchematics || 0) === 0
+        && (s.meta.schematics || 0) === 0) {
+      s.meta.schematics = 1;
+    }
     s.meta.totalProduced = Object.assign(emptyResources(), s.meta.totalProduced || {});
     s.meta.lifetimeProduced = Object.assign(emptyResources(), s.meta.lifetimeProduced || {});
     for (const r in s.meta.lifetimeProduced) {
@@ -5024,15 +5068,21 @@
       const n = TREE_NODES[id];
       const el = dom.railNodes[id];
       const revealed = nodeRevealed(id);
-      // Keep the cell occupying its column even when unrevealed — preserves
-      // the visual rhythm of the rail — but hide the node itself.
-      el.style.visibility = revealed ? '' : 'hidden';
+      // v0.9.8 — always show every node. Previously unrevealed nodes were
+      // set visibility:hidden, which hid the whole horizon of the tree from
+      // new players. They now render as dashed / dimmed "locked" cards so
+      // the player can see what's coming even before they can work toward
+      // it. The existing .locked CSS (45% opacity, dashed border) handles
+      // the visual dimming; nothing else needed.
+      el.style.visibility = '';
 
-      el.classList.remove('owned', 'available', 'locked', 'affordable', 'armed');
-      if (!revealed) continue;
-
+      el.classList.remove('owned', 'available', 'locked', 'affordable', 'armed', 'unrevealed');
       const st = nodeState(id);
       el.classList.add(st);
+      // Extra class on nodes whose prerequisites aren't even close yet so
+      // CSS can optionally style them more subtly than "almost-unlockable"
+      // locked nodes (where prereqs are at >=50%).
+      if (!revealed) el.classList.add('unrevealed');
       if (st === 'available' && state.meta.schematics >= nodeNextCost(id)) {
         el.classList.add('affordable');
       }
@@ -5559,9 +5609,14 @@
     const cards = Object.entries(CHALLENGES).map(([id, ch]) => {
       const isActive = active === id;
       const isDone = !!completed[id];
+      // v0.9.8 — per-challenge availability. An unavailable challenge gets
+      // a LOCKED status card with the unlock hint surfaced in place of the
+      // start button, so pre-publish players see what's coming.
+      const available = challengeAvailable(id);
       let status = 'AVAILABLE';
       if (isActive) status = 'ACTIVE';
       else if (isDone) status = 'COMPLETED';
+      else if (!available) status = 'LOCKED';
       // Show the scaled goal alongside the original label whenever the
       // player's accumulated patents have moved the needle. Prevents
       // surprises like "I started CONSTRAINED expecting to need 25
@@ -5570,6 +5625,18 @@
       const goalLine = scaled !== ch.goalSchematics
         ? `${ch.goalLabel} <span class="ch-goal-scaled">(now ${scaled})</span>`
         : ch.goalLabel;
+      // Action slot — which button / label the card closes with.
+      let actions;
+      if (isActive) {
+        actions = '<button class="ch-btn abandon" data-ch-abandon>ABANDON</button>';
+      } else if (isDone) {
+        actions = '<span class="ch-done-tag">◆ COMPLETED</span>';
+      } else if (!available) {
+        actions = '<span class="ch-lock-tag">UNLOCKS AFTER FIRST PUBLISH</span>';
+      } else {
+        const startDisabled = !(canPrestige() || state.meta.prestigeCount === 0);
+        actions = `<button class="ch-btn start" data-ch-start="${id}" ${startDisabled ? 'disabled' : ''}>START</button>`;
+      }
       return `
         <div class="challenge-card ${status.toLowerCase()}" data-ch="${id}">
           <div class="ch-head">
@@ -5579,11 +5646,7 @@
           <div class="ch-desc">${ch.desc}</div>
           <div class="ch-goal">${goalLine}</div>
           <div class="ch-reward"><span class="ch-reward-label">REWARD</span> ${ch.rewardLabel}</div>
-          <div class="ch-actions">
-            ${isActive ? '<button class="ch-btn abandon" data-ch-abandon>ABANDON</button>'
-              : isDone ? '<span class="ch-done-tag">◆ COMPLETED</span>'
-              : `<button class="ch-btn start" data-ch-start="${id}" ${canPrestige() || state.meta.prestigeCount === 0 ? '' : 'disabled'}>START</button>`}
-          </div>
+          <div class="ch-actions">${actions}</div>
         </div>
       `;
     }).join('');
