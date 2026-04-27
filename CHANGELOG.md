@@ -4,6 +4,35 @@ All notable changes to **Blueprint** are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.9] — 2026-04-24
+
+Two issues from a player who said most achievements could be rushed in under an hour and there was no auto-buy for research to make it faster. Both addressed in this patch.
+
+### Added
+
+- **Bulk-buy for research nodes.** Research now respects the BUY MODE bar (×1 / ×10 / ×100 / ×1000 / MAX) the same way machines and supports do. Mirrors the v0.9.7 supports fix. When a bulk mode is active the arm/confirm safety prompt is skipped — the player has already deliberately set the bulk mode and a confirm step on top would be redundant. Modifier keys also work as one-shot bulk requests for desktop:
+  - Shift + click → ×10
+  - Shift + Alt + click → ×100
+  - Ctrl + Shift + click → ×1000 (requires Max Buy research)
+  Plain ×1 still uses arm/confirm to prevent misclicks. BLACKOUT challenge still blocks all four paths.
+- **Eight higher-tier achievements** added to push the meta and scale tracks an order of magnitude further. The existing achievements were almost all reachable in the first ~hour of late-game play, which made the PERFECTIONIST capstone trivial. New entries:
+  - **◆ ORE TRILLIONAIRE** — 1T Ore lifetime
+  - **◆ MASS PRODUCTION** — 1M Prototypes lifetime
+  - **◆ INDUSTRIAL PARK** — 2,500 machines at once
+  - **◆ LIFE'S WORK** — 250 lifetime prestiges
+  - **◆ PROLIFIC** — 50 Publishes
+  - **◆ PATENT EMPIRE** — 1,000 lifetime Patents
+  - **◆ ARCHIVIST** — 25 lifetime Legacy Marks
+  - **◆ THE LONG HAUL** — stay in a single run for 4 hours
+
+  Brings the total from 71 to 79. PERFECTIONIST still requires earning every other achievement, so players who'd already earned it will see the capstone un-light until they reach the new milestones — that's intentional. The capstone moves with the list.
+
+### Notes
+
+- No save migration required. `state.meta.longRunAchieved` defaults to `false` for existing saves; the first run that crosses 4 h after this update flips it on.
+- Existing achievement earnings are preserved. The new entries simply join the list as additional targets.
+- The `peakMachines` tracker (used by OVERLORD) is now also read by INDUSTRIAL PARK, so existing high-machine-count players might already qualify for the new one on next launch — that's fine.
+
 ## [0.9.8] — 2026-04-23
 
 New-player experience pass. The v0.9.7 notes closed with "early-game pacing and late-game decisions are v1.0 material" — this release walks back the first half of that by shipping three pre-publish quality-of-life improvements that land safely without a full balance overhaul.

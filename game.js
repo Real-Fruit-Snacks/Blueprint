@@ -1,4 +1,4 @@
-/* ========== BLUEPRINT · v0.9.8 · Phase 4+5 (Redesign) ==========
+/* ========== BLUEPRINT · v0.9.9 · Phase 4+5 (Redesign) ==========
    Prestige-driven tree with Schematics currency. Leveled + unlock nodes.
    MK-IV / MK-V machines (10 new). New mechanics: momentum, lossless,
    bulk-buy, auto-buy, auto-click, double-pay.
@@ -19,7 +19,7 @@
   const SAVE_INTERVAL = 5000;
   const OFFLINE_CAP_MS = 8 * 3600 * 1000;
   const OFFLINE_REPORT_MS = 30_000;
-  const VERSION = '0.9.8';
+  const VERSION = '0.9.9';
   const LOG_MAX = 20;
   const MOMENTUM_CAP = 0.5;          // +50% max from momentum
   const LOSSLESS_FLOOR = 0.5;        // bottlenecked production floor
@@ -1464,6 +1464,20 @@
     archive_complete: { name: '◆ ARCHIVE COMPLETE', desc: 'Own every Archive upgrade.',                               group: 'meta' },
     exh_variety:      { name: '◆ EXHIBITIONIST',   desc: 'Complete every unique Exhibition.',                         group: 'challenge' },
 
+    // v0.9.9 — higher-tier milestones. Player feedback (itch.io) was that
+    // most achievements could be earned in under an hour and the rest of
+    // the run had nothing to chase. These eight push the meta and scale
+    // groups up an order of magnitude so a full play-arc has actual
+    // long-term targets to shoot for.
+    ore_trillion:     { name: '◆ ORE TRILLIONAIRE', desc: 'Produce 1T Ore (lifetime).',                                group: 'scale' },
+    proto_million:    { name: '◆ MASS PRODUCTION',  desc: 'Produce 1M Prototypes (lifetime).',                         group: 'scale' },
+    machines_2500:    { name: '◆ INDUSTRIAL PARK',  desc: 'Own 2,500 machines at once.',                               group: 'scale' },
+    prestige_250:     { name: "◆ LIFE'S WORK",     desc: 'Complete 250 prestiges (lifetime).',                        group: 'meta' },
+    publish_50:       { name: '◆ PROLIFIC',         desc: 'Complete 50 Publishes.',                                    group: 'meta' },
+    patents_1000:     { name: '◆ PATENT EMPIRE',    desc: 'Earn 1,000 lifetime Patents.',                              group: 'meta' },
+    legacy_25:        { name: '◆ ARCHIVIST',        desc: 'Earn 25 lifetime Legacy Marks.',                            group: 'meta' },
+    long_run:         { name: '◆ THE LONG HAUL',    desc: 'Stay in a single run for 4 hours.',                         group: 'challenge' },
+
     // Capstone
     perfectionist:    { name: '◆◆◆ PERFECTIONIST', desc: 'Earn every other achievement.',                             group: 'challenge' },
   };
@@ -1545,6 +1559,21 @@
       case 'flash_witness':   return { current: (m.flashesSeen || 0),                                     goal: 10 };
       case 'overlord':        return { current: (m.peakMachines || 0),                                    goal: 1000 };
       case 'marathoner':      return { current: (m.totalPlaytimeMs || 0),                                 goal: 24 * 3600 * 1000 };
+      // v0.9.9 — higher-tier milestones (see ACHIEVEMENTS dict above).
+      case 'ore_trillion':    return { current: (m.lifetimeProduced && m.lifetimeProduced.ore) || 0,       goal: 1e12 };
+      case 'proto_million':   return { current: (m.lifetimeProduced && m.lifetimeProduced.prototype) || 0, goal: 1e6 };
+      case 'machines_2500':   return { current: Math.max(totalMachines(), m.peakMachines || 0),            goal: 2500 };
+      case 'prestige_250':    return { current: (m.lifetimePrestiges || 0),                                goal: 250 };
+      case 'publish_50':      return { current: (m.publishCount || 0),                                     goal: 50 };
+      case 'patents_1000':    return { current: (m.totalPatents || 0),                                     goal: 1000 };
+      case 'legacy_25': {
+        // Total exhibitions ever completed — each grants 1 LM, so this is
+        // the lifetime-marks total even after the player spends them.
+        const c = (m.exhibitions && m.exhibitions.completed) || {};
+        let total = 0; for (const k in c) total += c[k] || 0;
+        return { current: total, goal: 25 };
+      }
+      case 'long_run':        return { current: m.longRunAchieved ? 1 : 0,                                 goal: 1 };
 
       case 'ch_pacifist':     return { current: (m.challenge && m.challenge.completed && m.challenge.completed.pacifist) ? 1 : 0, goal: 1 };
       case 'ch_blitz':        return { current: (m.challenge && m.challenge.completed && m.challenge.completed.blitz)    ? 1 : 0, goal: 1 };
@@ -1852,6 +1881,10 @@
         noResearchPrestige: false,
         minMachinePrestige: false,
         noSupportPublish: false,
+        // v0.9.9 — latched on the first time any single run reaches 4 h
+        // wall-clock since currentRunStartAt. Survives prestige / publish
+        // because the achievement is "I've ever had a run that long."
+        longRunAchieved: false,
         // Challenge modes — active run flag + completion ledger. Purchases of
         // research during a run toggle currentRunResearchBought so a Blackout
         // run that broke its own rule mid-way auto-fails.
@@ -2844,8 +2877,19 @@
     }
   }
 
-  function researchBuy(id) {
+  // Internal — buys one research level. No audio, no challenge gate. Used by
+  // the bulk paths so they fire one sound for the whole batch and only show
+  // the BLACKOUT toast once when blocked.
+  function researchBuyInner(id) {
     if (!canResearch(id)) return false;
+    const cost = nodeNextCost(id);
+    state.meta.schematics -= cost;
+    state.research.levels[id] = (state.research.levels[id] || 0) + 1;
+    state.meta.currentRunResearchBought = true;
+    invalidateRM();
+    return true;
+  }
+  function researchBuy(id) {
     // BLACKOUT: refuse the purchase outright rather than marking the run
     // tainted. Tier unlocks remain allowed (they're a different currency flow).
     if (activeChallenge() === 'blackout') {
@@ -2853,13 +2897,38 @@
       audio.error();
       return false;
     }
-    const cost = nodeNextCost(id);
-    state.meta.schematics -= cost;
-    state.research.levels[id] = (state.research.levels[id] || 0) + 1;
-    state.meta.currentRunResearchBought = true;
-    invalidateRM();
-    audio.research();
-    return true;
+    const ok = researchBuyInner(id);
+    if (ok) audio.research();
+    return ok;
+  }
+  // v0.9.9 — bulk research buy. Mirrors machine / support buy structure.
+  // count = number of levels to buy. The inner loop stops when the node
+  // is maxed, the player runs out of schematics, or count is reached.
+  function researchBuyMultiple(id, count) {
+    if (activeChallenge() === 'blackout') {
+      toast('<b>BLACKOUT</b> — research is locked this run.', { duration: 2500 });
+      audio.error();
+      return 0;
+    }
+    let bought = 0;
+    for (let i = 0; i < count; i++) {
+      if (!researchBuyInner(id)) break;
+      bought++;
+    }
+    if (bought > 0) audio.research();
+    return bought;
+  }
+  function researchBuyMax(id) {
+    if (activeChallenge() === 'blackout') {
+      toast('<b>BLACKOUT</b> — research is locked this run.', { duration: 2500 });
+      audio.error();
+      return 0;
+    }
+    let bought = 0;
+    // Same 10000 sanity cap as buyMax for machines / supports.
+    while (bought < 10000 && researchBuyInner(id)) bought++;
+    if (bought > 0) audio.research();
+    return bought;
   }
 
   // ---------- RESEARCH MULTIPLIERS ----------
@@ -3449,6 +3518,15 @@
     // OVERLORD achievement — track highest machine-count ever held
     if (totalMachines > (state.meta.peakMachines || 0)) state.meta.peakMachines = totalMachines;
 
+    // v0.9.9 — THE LONG HAUL achievement. Latched the first time any
+    // single run sits in currentRunStartAt for 4 cumulative wall-clock
+    // hours. Once true, it stays true through prestige / publish — the
+    // achievement is "I've had at least one 4 h+ run."
+    if (!state.meta.longRunAchieved
+        && Date.now() - (state.meta.currentRunStartAt || Date.now()) >= 4 * 3600 * 1000) {
+      state.meta.longRunAchieved = true;
+    }
+
     // BLITZ timer — auto-fail if the 5-minute window expires without a prestige.
     // Prestige within the window finalises the result via doPrestige().
     if (activeChallenge() === 'blitz') {
@@ -3919,6 +3997,7 @@
     if (s.meta.noResearchPrestige == null) s.meta.noResearchPrestige = false;
     if (s.meta.minMachinePrestige == null) s.meta.minMachinePrestige = false;
     if (s.meta.noSupportPublish == null) s.meta.noSupportPublish = false;
+    if (s.meta.longRunAchieved == null) s.meta.longRunAchieved = false;
     s.meta.challenge = Object.assign({ active: null, startedAt: 0, completed: {} }, s.meta.challenge || {});
     if (s.meta.currentRunResearchBought == null) s.meta.currentRunResearchBought = false;
     if (s.meta.firstPrototypeCelebrated == null) {
@@ -4974,7 +5053,32 @@
       if (nodeState(id) !== 'available' || state.meta.schematics < nodeNextCost(id)) {
         disarmNode(); renderRails(); renderTooltipFor(id); return;
       }
-      if (armedNode === id) {
+
+      // v0.9.9 — bulk research buying. The BUY MODE bar at the top of the
+      // factory now applies to research the same way it applies to machines
+      // and supports. When mode > 1 the player has explicitly opted into
+      // bulk purchasing, so we skip the arm/confirm safety prompt — its
+      // only purpose is to prevent ×1 misclicks. Modifier keys also work as
+      // one-shot bulk requests, mirroring the machine slot scheme:
+      //   Shift           → ×10
+      //   Shift + Alt     → ×100
+      //   Ctrl + Shift    → ×1000 (requires Max Buy research)
+      const r = rm();
+      let count = null;
+      if (r.bulkBuy) {
+        if (r.maxBuy && e.shiftKey && e.ctrlKey)   count = 1000;
+        else if (e.shiftKey && e.altKey)            count = 100;
+        else if (e.shiftKey)                        count = 10;
+      }
+      if (count === null) count = buyModeCount(state.settings.buyMode || '1', r);
+
+      if (count !== 1) {
+        let bought;
+        if (count === 'max') bought = researchBuyMax(id);
+        else                 bought = researchBuyMultiple(id, count);
+        if (bought > 0) { pulseNode(el); haptic(20); }
+        disarmNode();
+      } else if (armedNode === id) {
         if (researchBuy(id)) { pulseNode(el); haptic(20); }
         disarmNode();
       } else {
